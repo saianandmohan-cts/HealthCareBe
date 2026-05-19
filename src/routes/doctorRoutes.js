@@ -8,6 +8,7 @@ const {
     deleteAppointment,
     getAllAppointments,
     getUpcomingAppointments,
+    getAvailabilitySlots,
     getPastAppointments} = require('../controllers/doctorController');
 const { verifyDoctor } = require('../middleware/auth');
 

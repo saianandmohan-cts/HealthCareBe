@@ -175,13 +175,13 @@ exports.getPastAppointments = async(req,res,next)=>{
     }
 }
 
-export.getAvailabilitySlots= async(req,res,next)=>{
+exports.getAvailabilitySlots= async(req,res,next)=>{
     try{
         const currentDoctorId = req.doctor.dId;
         const records=await Availability.find({doctorId:currentDoctorId}).sort({date:1});
         if(record.length===0 || !records){
             return res.status(404).json({
-                message:"No Availablity Slot Present";
+                message:"No Availablity Slot Present"
             })
         }
         res.json(records);
