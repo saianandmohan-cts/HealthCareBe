@@ -191,3 +191,4 @@ exports.logoutPatient = async (req, res) => {
     });
   }
 };
+
