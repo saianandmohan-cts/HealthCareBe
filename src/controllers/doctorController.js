@@ -3,7 +3,7 @@ const Appointment = require('../models/appointment');
 const Availability = require('../models/doc_availability');
 const Consultations = require('../models/Consultations');
 
-// GET: All doctors
+
 exports.getAllDoctorInfo = async (req, res, next) => {
   try {
     const allDoctor = await Doctor.find({});
@@ -24,29 +24,27 @@ exports.getAllDoctorInfo = async (req, res, next) => {
     next(error);
   }
 };
-
-// GET: Current doctor info
 exports.getDoctor = async (req, res, next) => {
-  try {
-    const currentDoctorId = req.doctor.dId;
-    const doctorInfo = await Doctor.findOne({ doctorID: currentDoctorId }).select('-password');
+    try {
+        const currentDoctorId = req.doctor.dId;
+        const doctorInfo = await Doctor.findOne({ doctorID: currentDoctorId }).select('-password');
 
-    if (doctorInfo) {
-      return res.status(200).json({
-        success: true,
-        status: "success",
-        data: doctorInfo
-      });
-    } else {
-      return res.status(404).json({
-        success: false,
-        status: "not_found",
-        message: "Doctor Not Found"
-      });
+        if (doctorInfo) {
+        return res.status(200).json({
+            success: true,
+            status: "success",
+            data: doctorInfo
+        });
+        } else {
+        return res.status(404).json({
+            success: false,
+            status: "not_found",
+            message: "Doctor Not Found"
+        });
+        }
+    } catch (err) {
+        next(err);
     }
-  } catch (err) {
-    next(err);
-  }
 };
 
 // GET: Doctor by ID
@@ -185,7 +183,6 @@ exports.getPastAppointments = async (req, res, next) => {
   }
 };
 
-// GET: Availability slots
 exports.getAvailabilitySlots = async (req, res, next) => {
   try {
     const currentDoctorId = req.doctor.dId;
@@ -208,6 +205,64 @@ exports.getAvailabilitySlots = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.updateAvailabilitySlots = async (req, res, next) => {
+  try {
+    const { doctorId, date, slots } = req.body;
+
+    if (!doctorId || !date || !slots) {
+      return res.status(400).json({
+        success: false,
+        message: "Doctor ID, date, and slots are required."
+      });
+    }
+
+    const targetDate = new Date(date);
+    targetDate.setHours(0, 0, 0, 0);
+
+    const existing = await Availability.findOne({ doctorId, date: targetDate });
+
+    let mergedSlots;
+    if (existing) {
+      mergedSlots = slots.map(newSlot => {
+        const oldSlot = existing.slots.find(s => s.time === newSlot.time);
+        return {
+          time: newSlot.time,
+          isAvailable: newSlot.isAvailable,
+          isBooked: oldSlot ? oldSlot.isBooked : false
+        };
+      });
+    } else {
+      mergedSlots = slots.map(s => ({
+        time: s.time,
+        isAvailable: s.isAvailable,
+        isBooked: false
+      }));
+    }
+
+    const updatedAvailability = await Availability.findOneAndUpdate(
+      { doctorId, date: targetDate },
+      { doctorId, date: targetDate, slots: mergedSlots },
+      { new: true, upsert: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Availability slots updated successfully",
+      data: updatedAvailability
+    });
+
+  } catch (err) {
+    console.error("Update Availability Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error while updating availability slots.",
+      error: err.message
+    });
+  }
+};
+
+
 
 // POST: Create prescription
 exports.createPrescription = async (req, res) => {
