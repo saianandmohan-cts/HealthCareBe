@@ -1,7 +1,7 @@
 const Doctor = require('../models/doctor');
 const Appointment = require('../models/appointment');
 const Availability= require('../models/doc_availability');
-
+const Consultations = require('../models/Consultations');
 const {decodedData} = require('../utils/decodedDate');
 
 
@@ -188,5 +188,59 @@ exports.getAvailabilitySlots= async(req,res,next)=>{
     }
     catch(err){
         next(err);
+    }
+};
+
+
+// POST: Naya Prescription / Consultation create karne ke liye
+exports.createPrescription = async (req, res) => {
+    try {
+        const { consultationId, doctorId, date, appointmentId, notes, prescriptions } = req.body;
+
+        // 1. Core strict schema properties validation check
+        if (!consultationId || !doctorId || !appointmentId || !date) {
+            return res.status(400).json({
+                success: false,
+                message: "Kripya sabhi zaroori fields (Consultation ID, Doctor ID, Appointment ID, Date) bharein."
+            });
+        }
+
+        // 2. Avoid indexing duplicates inside database collections
+        const existingConsultation = await Consultations.findOne({ consultationId });
+        if (existingConsultation) {
+            return res.status(400).json({
+                success: false,
+                message: `Consultation ID #${consultationId} pehle se registered hai.`
+            });
+        }
+
+        // 3. New database schema allocation injection mapping
+        // 'prescriptions' frontend se direct [ { medicineName, dosage, route, frequency } ] array shape mein receive hoga
+        const newConsultation = new Consultations({
+            consultationId,
+            doctorId,
+            date,
+            appointmentId,
+            notes,
+            prescriptions
+        });
+
+        // 4. Persistence handling logic 
+        const savedConsultation = await Consultations.create(newConsultation);
+
+        // 5. Send verified JSON packet execution states to our angular success callback
+        return res.status(201).json({
+            success: true,
+            message: "Prescription successfully save ho gaya hai!",
+            data: savedConsultation
+        });
+
+    } catch (error) {
+        console.error("Create Prescription Error:", error);
+        return res.status(500).json({
+            success: false,
+            message: "Server par prescription save karte waqt internal error aayi.",
+            error: error.message
+        });
     }
 };

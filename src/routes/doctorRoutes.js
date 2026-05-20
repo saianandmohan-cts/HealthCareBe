@@ -9,7 +9,8 @@ const {
     getAllAppointments,
     getUpcomingAppointments,
     getAvailabilitySlots,
-    getPastAppointments} = require('../controllers/doctorController');
+    getPastAppointments,
+    createPrescription } = require('../controllers/doctorController');
 const { verifyDoctor } = require('../middleware/auth');
 
 // router.get('/profile',profileInfo);
@@ -34,6 +35,7 @@ router.get('/pastAppointments',verifyDoctor ,getPastAppointments);
 
 router.get('/availability',verifyDoctor ,getAvailabilitySlots);
 
+router.post('/consultations', verifyDoctor,createPrescription);
 
 
 module.exports=router;
