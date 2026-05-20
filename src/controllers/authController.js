@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const Patient = require('../models/patient');
+const Doctor = require('../models/doctor');t 
 const jwt = require("jsonwebtoken")
 
 exports.registerPatient = async (req, res) => {
@@ -128,7 +129,68 @@ exports.loginPatient = async (req, res) => {
     });
 }
 };
+exports.loginDoctor = async (req, res) => {
+  try {
+    const { doctorId, password } = req.body;
 
+    // 1. Find doctor by ID
+    const doctor = await Doctor.findOne({ doctorId });
+
+    if (!doctor) {
+      return res.status(400).json({
+        success: false,
+        status: "not_found",
+        message: "Doctor not found"
+      });
+    }
+
+    // 2. Compare password
+    const isMatch = await bcrypt.compare(password, doctor.password);
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        status: "error",
+        message: "Invalid password"
+      });
+    }
+
+    // 3. Create JWT payload
+    const payload = {
+      dId: doctor.doctorId,
+      demail: doctor.email
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: process.env.JWT_EXPIRY
+    });
+
+    // 4. Cookie options
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000
+    };
+
+    // 5. Set cookie and return response
+    res.cookie('token', token, cookieOptions);
+
+    return res.status(200).json({
+      success: true,
+      status: "success",
+      message: "Doctor login successful"
+    });
+
+  } catch (error) {
+    console.error("CRITICAL DOCTOR LOGIN ERROR TRACE:", error);
+    return res.status(500).json({
+      success: false,
+      status: "error",
+      message: "Internal Server Error",
+      error: error.message
+    });
+  }
+};
 
 exports.getMe = async (req, res) => {
   try {
