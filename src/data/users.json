@@ -1,0 +1,37 @@
+[
+  {
+    "userId": 101,
+    "name": "Alice",
+    "email": "alice@example.com"
+  },
+  {
+    "userId": 102,
+    "name": "Charles",
+    "email": "charles@example.com"
+  },
+  {
+    "userId": "user-10101",
+    "name": "demo",
+    "email": "hello"
+  },
+  {
+    "userId": "user-10101",
+    "name": "demo",
+    "email": "hello"
+  },
+  {
+    "userId": "user-10101001",
+    "name": "demoUser",
+    "email": "hello@email.com"
+  },
+  {
+    "userId": "user-10101001",
+    "name": "demoUser",
+    "email": "hello@email.com"
+  },
+  {
+    "userId": "user-10101001",
+    "name": "demoUser",
+    "email": "hello@email.com"
+  }
+]
