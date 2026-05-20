@@ -99,7 +99,8 @@ exports.loginPatient = async (req, res) => {
 
     const payload = {
         pId : user.patientId,
-        pemail: user.email
+        pemail: user.email,
+        role:"PATIENT"
     }
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn : process.env.JWT_EXPIRY})
@@ -157,7 +158,8 @@ exports.loginDoctor = async (req, res) => {
     // 3. Create JWT payload
     const payload = {
       dId: doctor.doctorId,
-      demail: doctor.email
+      demail: doctor.email,
+      role:"DOCTOR"
     };
 
     const token = jwt.sign(payload, process.env.JWT_SECRET, {
