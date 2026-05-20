@@ -1,16 +1,14 @@
 const jwt = require("jsonwebtoken");
 
 
-exports.authMiddleware = (req, res, next) => {
+exports.verifyPatient = (req, res, next) => {
     try {
         const token = req.cookies.token;
 
         if (!token) {
             return res.status(401).json({ success: false, message: "No token provided" });
         }
-
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
         // 🔒 ROLE GUARD: Agar token Doctor ka hai aur rasta Patient ka hai, toh block karo!
         if (decoded.role && decoded.role !== 'PATIENT') {
             return res.status(403).json({ success: false, message: "Access Denied: Patients Only Route" });

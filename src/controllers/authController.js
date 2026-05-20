@@ -1,6 +1,6 @@
 const bcrypt = require('bcrypt');
 const Patient = require('../models/patient');
-const Doctor = require('../models/doctor');t 
+const Doctor = require('../models/doctor');
 const jwt = require("jsonwebtoken")
 
 exports.registerPatient = async (req, res) => {
