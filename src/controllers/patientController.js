@@ -1,4 +1,3 @@
-const PDFDocument = require('pdfkit');
 const Patient = require('../models/patient')
 const Appointment = require('../models/appointment')
 const Consultations = require('../models/Consultations');

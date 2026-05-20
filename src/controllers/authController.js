@@ -119,11 +119,12 @@ exports.loginPatient = async (req, res) => {
     });
 
   }catch (error) {
-    console.error(" CRITICAL LOGIN ERROR TRACE:", error); // Yeh aapko terminal me exact wajah batayega
+    console.error(" CRITICAL LOGIN ERROR TRACE:", error);
+    
     return res.status(500).json({
         success: false,
         message: "Internal Server Error",
-        error: error.message // Frontend ko bhi pata chal jayega
+        error: error.message 
     });
 }
 };

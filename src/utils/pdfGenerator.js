@@ -9,6 +9,7 @@ exports.generatePrescriptionPDF = (res, data) => {
     const { id, pDate, pName, pAge, pGender, pPhone, dName, consultation } = data;
 
 
+    
 
     
     // 1. Naya PDF Document Instance Initialize kiya
