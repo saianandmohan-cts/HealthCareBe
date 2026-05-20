@@ -39,14 +39,13 @@ exports.verifyDoctor = (req, res, next) => {
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        // 🔒 ROLE GUARD: Check karo ki token doctor ka hi hai na!
+        
         if (decoded.role !== 'DOCTOR') {
             return res.status(403).json({ success: false, message: 'Access Denied: Unauthorized Role' });
         }
 
-        req.doctor = decoded; // Doctor details ko request object me attach kar diya
-        next(); // Agle controller code ko chalne do
+        req.doctor = decoded; 
+        next(); 
     } catch (err) {
         return res.status(401).json({ success: false, message: 'Invalid or expired session token' });
     }
