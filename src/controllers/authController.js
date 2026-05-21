@@ -37,6 +37,7 @@ exports.registerPatient = async (req, res) => {
 
 exports.loginPatient = async (req, res) => {
   try {
+console.log("📥 BACKEND RECIEVED BODY:", req.body);
     const { email, password } = req.body;
 
     const user = await Patient.findOne({ email });

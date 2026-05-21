@@ -5,9 +5,12 @@ const {
   loginPatient,
   loginDoctor, 
   getMe,
-  logout
+  logout,
+  registerPatient
 } = require('../controllers/authController');
 
+
+router.post('/register', registerPatient)
 router.post('/', loginPatient);        
 router.post('/doctor', loginDoctor);   
 router.get('/me', getMe);              
