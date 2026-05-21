@@ -3,26 +3,31 @@ const Appointment = require('../models/appointment')
 const Consultations = require('../models/Consultations');
 const Doctor = require('../models/doctor');
 
-exports.getPatientDashboard = async (req,res,next) =>{
-    try{
+exports.getPatientDashboard = async (req, res, next) => {
+    try {
+        // ✅ 100% DYNAMIC: URL parameter ko goli maro! Direct login session cookie se patientId uthao
+        const patientId = req.user.pId; 
 
-        const patientId=String(req.params.patientId);
-
-        if(String(req.user.pId) !== patientId){
-            return res.status(403).json({message : "You are not authorized"});
+        if (!patientId) {
+            return res.status(401).json({ message: "Session expired, please login again" });
         }
 
-        const patientList = await Patient.findOne({patientId:patientId});
+        const patientList = await Patient.findOne({ patientId: patientId });
 
-        if(!patientList){
-            return res.status(404).json({message : 'Patient not Found'});
+        if (!patientList) {
+            return res.status(404).json({ message: 'Patient not Found' });
         }
 
-        const appointments = await Appointment.find({patient:patientId});
+        // Is patient ki saari appointments nikal lo
+        const appointments = await Appointment.find({ patient: patientId });
 
-        res.status(200).json({message:'Patient Dashboard Fetched Successfully',patientList,appointments});
+        res.status(200).json({ 
+            message: 'Patient Dashboard Fetched Successfully', 
+            patientList, 
+            appointments 
+        });
     
-    }catch(err){
+    } catch (err) {
         next(err);
     }
 }
