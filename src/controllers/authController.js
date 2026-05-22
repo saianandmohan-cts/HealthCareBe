@@ -1,266 +1,128 @@
 const bcrypt = require('bcrypt');
 const Patient = require('../models/patient');
 const Doctor = require('../models/doctor');
-const jwt = require("jsonwebtoken")
+const { generateToken, setAuthCookie, clearAuthCookie } = require('../middleware/auth');
 
 exports.registerPatient = async (req, res) => {
   try {
-    const {
-      name,
-      age,
-      gender,
-      contactNumber,
-      email,
-      password,
-      address,
-      medicalHistory,
-      allergy
-    } = req.body;
+    const { name, age, gender, contactNumber, email, password, address, medicalHistory, allergy } = req.body;
 
-    
     const existingPatient = await Patient.findOne({ email });
-
     if (existingPatient) {
-      return res.status(400).json({
-        success: false,
-        message: 'Patient already exists with this email'
-      });
+      return res.status(400).json({ success: false, message: 'Patient already exists with this email' });
     }
 
-  
     const hashedPassword = await bcrypt.hash(password, 10);
-
-   
     const lastPatient = await Patient.findOne().sort({ patientId: -1 });
-
     const newPatientId = lastPatient ? lastPatient.patientId + 1 : 1;
 
-
     const newPatient = new Patient({
-      patientId: newPatientId,
-      name,
-      age,
-      gender,
-      contactNumber,
-      email,
-      password: hashedPassword,
-      address,
-
-      
-      medicalHistory: medicalHistory || [],
-      allergy: allergy || []
+      patientId: newPatientId, name, age, gender, contactNumber, email,
+      password: hashedPassword, address,
+      medicalHistory: medicalHistory || [], allergy: allergy || []
     });
 
-    
     await newPatient.save();
 
-   
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: 'Patient registered successfully',
-      patient: {
-        patientId: newPatient.patientId,
-        name: newPatient.name,
-        email: newPatient.email
-      }
+      patient: { patientId: newPatient.patientId, name: newPatient.name, email: newPatient.email }
     });
-
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: error.message
-    });
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
 
-
-
 exports.loginPatient = async (req, res) => {
   try {
+console.log("📥 BACKEND RECIEVED BODY:", req.body);
     const { email, password } = req.body;
 
     const user = await Patient.findOne({ email });
-
     if (!user) {
-      return res.status(400).json({
-        message: 'User not found'
-      });
+      return res.status(400).json({ message: 'User not found' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
-      return res.status(400).json({
-        message: 'Invalid password'
-      });
+      return res.status(400).json({ message: 'Invalid password' });
     }
 
-    const payload = {
-        pId : user.patientId,
-        pemail: user.email,
-        role:"PATIENT"
-    }
+    const token = generateToken({ pId: user.patientId, pemail: user.email, role: "PATIENT" });
+    setAuthCookie(res, token);
 
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {expiresIn : process.env.JWT_EXPIRY})
-
-    const cookieOptions = {
-      httpOnly: true,
-      secure: process.env.NODE_ENV ==='production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000
-    }
-
-    res.cookie('token',token,cookieOptions);
-
-
-
-    res.status(200).json({
-      message: 'Login successful',
-    });
-
-  }catch (error) {
-    console.error(" CRITICAL LOGIN ERROR TRACE:", error);
-    
-    return res.status(500).json({
-        success: false,
-        message: "Internal Server Error",
-        error: error.message 
-    });
-}
+    return res.status(200).json({ message: 'Login successful' });
+  } catch (error) {
+    console.error("CRITICAL LOGIN ERROR TRACE:", error);
+    return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+  }
 };
 
 
 exports.loginDoctor = async (req, res) => {
   try {
     const { doctorId, password } = req.body;
-    console.log(req.body);
-    // 1. Find doctor by ID
     const doctor = await Doctor.findOne({ doctorId });
-
     if (!doctor) {
-      // console.log("nahi mila doctor")
-      return res.status(404).json({
-        success: false,
-        status: "not_found",
-        message: "Doctor not found"
-      });
+      return res.status(400).json({ success: false, status: "not_found", message: "Doctor not found" });
     }
 
-    // 2. Compare password
     const isMatch = await bcrypt.compare(password, doctor.password);
-    const isMatch2=false;
-
-    if(password === doctor.password)
-    if (!isMatch2) {
-      //console.log("nahi mila password")
-      return res.status(404).json({
-        success: false,
-        status: "error",
-        message: "Invalid password"
-      });
+    if (!isMatch) {
+      return res.status(400).json({ success: false, status: "error", message: "Invalid password" });
     }
 
-    // 3. Create JWT payload
-    const payload = {
-      dId: doctor.doctorId,
-  
-      role:"DOCTOR"
-    };
+    // Modular Token & Cookie Flow 🚀
+    const token = generateToken({ dId: doctor.doctorId, demail: doctor.email, role: "DOCTOR" });
+    setAuthCookie(res, token);
 
-    //console.log(payload);
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: process.env.JWT_EXPIRY
-    });
-
-    // 4. Cookie options
-    const cookieOptions = {
-      httpOnly: true,
-      
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000
-    };
-  // secure: process.env.NODE_ENV === 'production',
-    // 5. Set cookie and return response
-    res.cookie('token', token, cookieOptions);
-
-    return res.status(200).json({
-      success: true,
-      status: "success",
-      message: "Doctor login successful"
-    });
-
+    return res.status(200).json({ success: true, status: "success", message: "Doctor login successful" });
   } catch (error) {
     console.error("CRITICAL DOCTOR LOGIN ERROR TRACE:", error);
-    return res.status(500).json({
-      success: false,
-      status: "error",
-      message: "Internal Server Error",
-      error: error.message
-    });
+    return res.status(500).json({ success: false, status: "error", message: "Internal Server Error", error: error.message });
   }
 };
 
+
 exports.getMe = async (req, res) => {
   try {
-    const token = req.cookies.token;
-
+    const token = req.cookies?.token;
     if (!token) {
       return res.status(401).json({ success: false, message: 'No session token found' });
     }
 
-    // Token decode karenge
+    const jwt = require("jsonwebtoken");
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Database se patient ka live profile data nikalenge
-    const user = await Patient.findOne({ patientId: decoded.pId });
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User session invalid or not found' });
+    // Smart Switch Base Matching Role Guard 🧠
+    if (decoded.role === 'DOCTOR') {
+      const doctor = await Doctor.findOne({ doctorId: decoded.dId }).select('-password');
+      if (!doctor) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
+      
+      return res.status(200).json({ success: true, role: 'DOCTOR', user: doctor });
+    } else {
+      const patient = await Patient.findOne({ patientId: decoded.pId });
+      if (!patient) return res.status(404).json({ success: false, message: 'Patient profile not found' });
+      
+      return res.status(200).json({
+        success: true,
+        role: 'PATIENT',
+        user: { id: patient.patientId, patientId: patient.patientId, name: patient.name, email: patient.email }
+      });
     }
-
-    // Sirf safe public data frontend ko return karenge
-    return res.status(200).json({
-      success: true,
-      user: {
-        id: user.patientId,
-        patientId: user.patientId,
-        name: user.name,
-        email: user.email
-      }
-    });
-
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Session expired or invalid token',
-      error: error.message
-    });
+    return res.status(401).json({ success: false, message: 'Session expired or invalid token', error: error.message });
   }
 };
 
 
-
-exports.logoutPatient = async (req, res) => {
+exports.logout = async (req, res) => {
   try {
-    // Cookie ko clear karne ke liye hum use turant expire kar dete hain
-    res.clearCookie('token', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: 'Logged out successfully'
-    });
+    clearAuthCookie(res); // Clean wipe cookie out
+    return res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: 'Logout failed',
-      error: error.message
-    });
+    return res.status(500).json({ success: false, message: 'Logout failed', error: error.message });
   }
 };
