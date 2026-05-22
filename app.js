@@ -31,6 +31,8 @@ const doctorRoutes = require ('./src/routes/doctorRoutes');
 
 //Sujay
  app.use('/login', authRoutes);
+
+ 
  app.use('/registration', registrationRoutes);
 
 //Devang + Sai

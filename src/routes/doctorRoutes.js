@@ -19,7 +19,9 @@ const { verifyDoctor } = require('../middleware/auth');
 
 router.get('/allDoctor' ,getAllDoctorInfo);
 router.get('/getDoctorById/:id' ,getDoctorById);
+
 router.get('/getDoctor',verifyDoctor ,getDoctor);
+
 
 
 //add this in doctor Controller

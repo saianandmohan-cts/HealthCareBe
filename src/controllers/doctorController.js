@@ -26,9 +26,15 @@ exports.getAllDoctorInfo = async (req, res, next) => {
 };
 exports.getDoctor = async (req, res, next) => {
     try {
+        console.log("FROM GET DOCTOR CONTROLLER")
         const currentDoctorId = req.doctor.dId;
-        const doctorInfo = await Doctor.findOne({ doctorID: currentDoctorId }).select('-password');
 
+        console.log("Token ID:", currentDoctorId);
+
+        const doctorInfo = await Doctor.findOne({ doctorId: currentDoctorId });
+        
+        console.log("Database Result:", doctorInfo);
+        
         if (doctorInfo) {
         return res.status(200).json({
             success: true,
@@ -209,7 +215,8 @@ exports.getAvailabilitySlots = async (req, res, next) => {
 exports.updateAvailabilitySlots = async (req, res, next) => {
   try {
     const { doctorId, date, slots } = req.body;
-
+    console.log("Incoming Request Body:", req.body);
+    
     if (!doctorId || !date || !slots) {
       return res.status(400).json({
         success: false,
@@ -217,21 +224,25 @@ exports.updateAvailabilitySlots = async (req, res, next) => {
       });
     }
 
-    const targetDate = new Date(date);
-    targetDate.setHours(0, 0, 0, 0);
+    const isoDateString = new Date(date).toISOString().split('T')[0]; 
+    const targetDate = new Date(`${isoDateString}T00:00:00.000Z`);
+    
+    console.log("Target Date",targetDate);
 
-    const existing = await Availability.findOne({ doctorId, date: targetDate });
-
+    const existing = await Availability.findOne({ doctorId, date: targetDate }).lean();
+    //console.log("Existing SLots ",existing)
     let mergedSlots;
-    if (existing) {
-      mergedSlots = slots.map(newSlot => {
-        const oldSlot = existing.slots.find(s => s.time === newSlot.time);
-        return {
-          time: newSlot.time,
-          isAvailable: newSlot.isAvailable,
-          isBooked: oldSlot ? oldSlot.isBooked : false
-        };
-      });
+    if (existing && existing.slots) {
+      
+      const existingBookingsMap = new Map(
+        existing.slots.map(s => [s.time, s.isBooked])
+      );
+
+      mergedSlots = slots.map(newSlot => ({
+        time: newSlot.time,
+        isAvailable: newSlot.isAvailable,
+        isBooked: existingBookingsMap.has(newSlot.time) ? existingBookingsMap.get(newSlot.time) : false
+      }));
     } else {
       mergedSlots = slots.map(s => ({
         time: s.time,
@@ -239,12 +250,14 @@ exports.updateAvailabilitySlots = async (req, res, next) => {
         isBooked: false
       }));
     }
-
+    //console.log("Merged",mergedSlots);
+    
     const updatedAvailability = await Availability.findOneAndUpdate(
       { doctorId, date: targetDate },
-      { doctorId, date: targetDate, slots: mergedSlots },
-      { new: true, upsert: true }
+      { $set: { slots: mergedSlots } }, // Using $set is cleaner for specific updates
+      { returnDocument: 'after', upsert: true, runValidators: true }
     );
+    //console.log(updatedAvailability);
 
     return res.status(200).json({
       success: true,
@@ -261,7 +274,6 @@ exports.updateAvailabilitySlots = async (req, res, next) => {
     });
   }
 };
-
 
 
 // POST: Create prescription

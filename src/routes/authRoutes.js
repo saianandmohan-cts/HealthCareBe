@@ -4,13 +4,17 @@ const router = express.Router();
 const {
   loginPatient,
   getMe,
-  logoutPatient
+  logoutPatient,
+  loginDoctor
 } = require('../controllers/authController');
+
 
 
 router.post('/', loginPatient);
 
 router.get('/me',getMe)
+
+router.post('/doctor',loginDoctor);
 
 router.post('/logout',logoutPatient)
 

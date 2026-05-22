@@ -34,14 +34,16 @@ exports.authMiddleware = (req, res, next) => {
 
 exports.verifyDoctor = (req, res, next) => {
     const token = req.cookies?.token;
-
+    //console.log(token)
     if (!token) {
         return res.status(401).json({ success: false, message: 'Access Denied: No active session' });
     }
 
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
+
+        //console.log(decoded);
+
         if (decoded.role !== 'DOCTOR') {
             return res.status(403).json({ success: false, message: 'Access Denied: Unauthorized Role' });
         }
