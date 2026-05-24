@@ -118,29 +118,24 @@ exports.getUpcomingAppointments = async (req, res, next) => {
   }
 };
 
+
 // =========================================================================
-// ✅ FIXED: PAST APPOINTMENTS
-// =========================================================================
-// =========================================================================
-// ✅ FIXED: MULTI-RECORD PAST APPOINTMENTS WITH WORKING RELATION COUPLING
+// ✅ SYSTEM FIXED: PAST APPOINTMENTS WITH CAST PROTECTION SHIELD
 // =========================================================================
 exports.getPastAppointments = async (req, res, next) => {
   try {
     const currentDoctorId = req.doctor.dId;
     console.log("📥 FETCHING PAST APPOINTMENTS FOR DOCTOR REFERENCE:", currentDoctorId);
 
-    // 1. Target saare complete ya older documents fetch kiya sorted matrix block par
     const appointments = await Appointment.find({
       doctorId: String(currentDoctorId)
     }).populate('patient').sort({ date: -1, time: -1 });
 
     const todayStr = new Date().toISOString().split('T')[0];
     
-    // 2. ✅ PARALLEL PROMISE CONCURRENCY: Array execution skipping problem solution
     const populatedPast = await Promise.all(appointments.map(async (app) => {
       const appDateStr = app.date ? new Date(app.date).toISOString().split('T')[0] : '';
 
-      // Check status flags condition safely
       if (appDateStr < todayStr || app.status === "Completed" || app.status === "Cancelled") {
         const appObj = app.toObject();
         const patientData = app.patient;
@@ -154,10 +149,26 @@ exports.getPastAppointments = async (req, res, next) => {
 
         appObj.date = appDateStr;
 
-        // ✅ RELATIONAL DATABASE LOOKUP AUTOMATION Matrix
-        const consultation = await Consultations.findOne({ appointmentId: app._id }) ||
-                             await Consultations.findOne({ appointmentId: String(app._id) }) ||
-                             await Consultations.findOne({ appointmentId: app.appointmentId });
+        // ✅ STRIP WHITESPACES & DEFEND CAST ERROR
+        const cleanInternalId = String(app._id).trim();
+        const cleanCustomId = app.appointmentId ? String(app.appointmentId).trim() : '';
+
+        let consultation = null;
+
+        // Condition 1: Query only if it's a valid 24-char hex string
+        if (cleanInternalId.match(/^[0-9a-fA-F]{24}$/)) {
+          consultation = await Consultations.findOne({ appointmentId: cleanInternalId });
+        }
+
+        // Condition 2: Fallback bypass using sequential keys safely
+        if (!consultation && cleanCustomId.match(/^[0-9a-fA-F]{24}$/)) {
+          consultation = await Consultations.findOne({ appointmentId: cleanCustomId });
+        }
+
+        // Condition 3: Custom schema structural fallback
+        if (!consultation) {
+          consultation = await Consultations.findOne({ consultationId: !isNaN(cleanCustomId) ? Number(cleanCustomId) : 0 });
+        }
 
         if (consultation) {
           appObj.notes = consultation.notes || "No notes added";
@@ -175,23 +186,109 @@ exports.getPastAppointments = async (req, res, next) => {
         }
         return appObj;
       }
-      return null; // Ignore if it's upcoming and not completed yet
+      return null; 
     }));
 
-    // Filter out edge case null loops values safely
     const finalCleanList = populatedPast.filter(item => item !== null);
-
-    console.log(`🚀 DOCTOR VIEW SUCCESS: BROADCASTING ${finalCleanList.length} COMPLETED RECORDS LIST.`);
-    return res.status(200).json({ 
-      success: true, 
-      status: "success", 
-      count: finalCleanList.length, 
-      data: finalCleanList 
-    });
+    return res.status(200).json({ success: true, status: "success", count: finalCleanList.length, data: finalCleanList });
 
   } catch (err) {
-    console.error("❌ CRITICAL ERROR IN DOCTOR PORTAL RENDERING QUERY FLOW:", err);
+    console.error("❌ CRITICAL ERROR IN DOCTOR PORTAL PAST APPOINTMENTS:", err);
     next(err);
+  }
+};
+
+// =========================================================================
+// ✅ SYSTEM FIXED: UNBREAKABLE PRESCRIPTION CREATION
+// =========================================================================
+exports.createPrescription = async (req, res) => {
+  try {
+    const { consultationId, doctorId, date, appointmentId, notes, prescriptions } = req.body;
+    console.log("📥 [DOCTOR ENGINE] PRESCRIPTION PAYLOAD RECEIVED:", req.body);
+
+    if (!doctorId || !appointmentId || !date) {
+      return res.status(400).json({ success: false, status: "error", message: "Required fields missing." });
+    }
+
+    // Trim raw string values safely
+    const cleanApptId = String(appointmentId).trim();
+
+    const currentAppt = await Appointment.findOne({ appointmentId: cleanApptId }) || 
+                        (cleanApptId.match(/^[0-9a-fA-F]{24}$/) ? await Appointment.findById(cleanApptId) : null);
+
+    if (!currentAppt) {
+      return res.status(404).json({ success: false, status: "error", message: "Associated appointment details not found." });
+    }
+
+    const uniqueId = consultationId || Math.floor(100000 + Math.random() * 900000);
+    
+    const newConsultation = new Consultations({
+      consultationId: uniqueId,
+      appointmentId: currentAppt._id, 
+      patient: currentAppt.patient,   
+      doctorId: doctorId || currentAppt.doctorId || "D001",
+      date: date || currentAppt.date,
+      notes: notes || "No clinical description recorded.",
+      prescriptions: (prescriptions || []).map(p => ({
+        medicineName: p.medicineName || p.name || 'General Medicine',
+        dosage: String(p.dosage || 'N/A'),
+        route: p.route || 'Oral',
+        frequency: String(p.frequency || 'As directed')
+      }))
+    });
+
+    const savedConsultation = await Consultations.create(newConsultation);
+    
+    currentAppt.status = 'Completed';
+    await currentAppt.save();
+
+    return res.status(201).json({ success: true, status: "success", message: "Prescription saved successfully!", data: savedConsultation });
+
+  } catch (error) {
+    console.error("❌ BACKEND VALIDATION FAILURE IN CREATION:", error);
+    return res.status(500).json({ success: false, status: "error", message: "Internal server error while saving prescription.", error: error.message });
+  }
+};
+
+// =========================================================================
+// ✅ SYSTEM FIXED: GET PRESCRIPTION FOR DOCTOR VIEW INTERFACE (NO CAST ERRORS)
+// =========================================================================
+exports.getPrescriptionByAppointment = async (req, res) => {
+  try {
+    const cleanId = String(req.params.appointmentId).trim();
+    console.log("📥 [DOCTOR VIEW CHANNELS] FETCHING FOR APPOINTMENT:", cleanId);
+
+    const appt = await Appointment.findOne({ appointmentId: cleanId }) || 
+                 (cleanId.match(/^[0-9a-fA-F]{24}$/) ? await Appointment.findById(cleanId) : null);
+
+    if (!appt) {
+      return res.status(404).json({ success: false, message: "Appointment not found." });
+    }
+
+    // Guarding query layer with safe string conversions to prevent crash loops
+    const consultation = await Consultations.findOne({ appointmentId: appt._id });
+
+    if (!consultation) {
+      return res.status(200).json({ success: true, data: { notes: "No notes added", prescriptions: [] } });
+    }
+
+    return res.status(200).json({
+      success: true,
+      status: "success",
+      data: {
+        notes: consultation.notes || "No notes recorded.",
+        prescriptions: (consultation.prescriptions || []).map(p => ({
+          medicineName: p.medicineName || p.name,
+          dosage: p.dosage,
+          route: p.route,
+          frequency: p.frequency
+        }))
+      }
+    });
+
+  } catch (error) {
+    console.error("❌ DOCTOR PORTAL VIEW FETCH FAILURE:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
 
@@ -262,74 +359,74 @@ exports.updateAvailabilitySlots = async (req, res, next) => {
 // =========================================================================
 // ✅ FIXED: UNBREAKABLE DYNAMIC PRESCRIPTION CREATION
 // =========================================================================
-exports.createPrescription = async (req, res) => {
-  try {
-    const { consultationId, doctorId, date, appointmentId, notes, prescriptions } = req.body;
-    console.log("📥 [DOCTOR ENGINE] PRESCRIPTION PAYLOAD RECEIVED:", req.body);
+// exports.createPrescription = async (req, res) => {
+//   try {
+//     const { consultationId, doctorId, date, appointmentId, notes, prescriptions } = req.body;
+//     console.log("📥 [DOCTOR ENGINE] PRESCRIPTION PAYLOAD RECEIVED:", req.body);
 
-    if (!doctorId || !appointmentId || !date) {
-      return res.status(400).json({ success: false, status: "error", message: "Required fields missing." });
-    }
+//     if (!doctorId || !appointmentId || !date) {
+//       return res.status(400).json({ success: false, status: "error", message: "Required fields missing." });
+//     }
 
-    // 1. ✅ CRITICAL RELATIONAL DATA FETCH:
-    // Mongoose query se dynamic active appointment record nikalenge
-    const currentAppt = await Appointment.findOne({ appointmentId: appointmentId }) || 
-                        await Appointment.findById(appointmentId);
+//     // 1. ✅ CRITICAL RELATIONAL DATA FETCH:
+//     // Mongoose query se dynamic active appointment record nikalenge
+//     const currentAppt = await Appointment.findOne({ appointmentId: appointmentId }) || 
+//                         await Appointment.findById(appointmentId);
 
-    if (!currentAppt) {
-      return res.status(404).json({ 
-        success: false, 
-        status: "error", 
-        message: "Associated appointment details not found for creating prescription." 
-      });
-    }
+//     if (!currentAppt) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         status: "error", 
+//         message: "Associated appointment details not found for creating prescription." 
+//       });
+//     }
 
-    // 2. Duplicate Validation via consultationId standard
-    const uniqueId = consultationId || Math.floor(100000 + Math.random() * 900000);
-    const existingConsultation = await Consultations.findOne({ consultationId: uniqueId });
-    if (existingConsultation) {
-      return res.status(400).json({ success: false, status: "error", message: `Consultation ID #${uniqueId} already exists.` });
-    }
+//     // 2. Duplicate Validation via consultationId standard
+//     const uniqueId = consultationId || Math.floor(100000 + Math.random() * 900000);
+//     const existingConsultation = await Consultations.findOne({ consultationId: uniqueId });
+//     if (existingConsultation) {
+//       return res.status(400).json({ success: false, status: "error", message: `Consultation ID #${uniqueId} already exists.` });
+//     }
 
-    // 3. ✅ SAFE RELATIONAL OBJECT MAPPING
-    // Required paths code architecture validation bypass karne ke liye database links automate kiye
-    const newConsultation = new Consultations({
-      consultationId: uniqueId,
-      appointmentId: currentAppt._id, // Strict dynamic link to internal MongoDB ObjectId standard
-      patient: currentAppt.patient,   // ✅ RESOLVED: Linked active relational patient _id node dynamically!
-      doctorId: doctorId || currentAppt.doctorId || "D001",
-      date: date || currentAppt.date,
-      notes: notes || "No clinical description recorded.",
-      prescriptions: (prescriptions || []).map(p => ({
-        medicineName: p.medicineName || p.name || 'General Medicine',
-        dosage: String(p.dosage || 'N/A'),
-        route: p.route || 'Oral',
-        frequency: String(p.frequency || 'As directed')
-      }))
-    });
+//     // 3. ✅ SAFE RELATIONAL OBJECT MAPPING
+//     // Required paths code architecture validation bypass karne ke liye database links automate kiye
+//     const newConsultation = new Consultations({
+//       consultationId: uniqueId,
+//       appointmentId: currentAppt._id, // Strict dynamic link to internal MongoDB ObjectId standard
+//       patient: currentAppt.patient,   // ✅ RESOLVED: Linked active relational patient _id node dynamically!
+//       doctorId: doctorId || currentAppt.doctorId || "D001",
+//       date: date || currentAppt.date,
+//       notes: notes || "No clinical description recorded.",
+//       prescriptions: (prescriptions || []).map(p => ({
+//         medicineName: p.medicineName || p.name || 'General Medicine',
+//         dosage: String(p.dosage || 'N/A'),
+//         route: p.route || 'Oral',
+//         frequency: String(p.frequency || 'As directed')
+//       }))
+//     });
 
-    const savedConsultation = await Consultations.create(newConsultation);
-    console.log("🚀 PRESCRIPTION SAVED SUCCESSFULLY ON REFERENCE BLOCK:", savedConsultation._id);
+//     const savedConsultation = await Consultations.create(newConsultation);
+//     console.log("🚀 PRESCRIPTION SAVED SUCCESSFULLY ON REFERENCE BLOCK:", savedConsultation._id);
 
-    // 4. ✅ STATUS SYNC PIPELINE:
-    // Treatment complete hote hi, automatic appt status completed stack par patch trigger karega
-    currentAppt.status = 'Completed';
-    await currentAppt.save();
+//     // 4. ✅ STATUS SYNC PIPELINE:
+//     // Treatment complete hote hi, automatic appt status completed stack par patch trigger karega
+//     currentAppt.status = 'Completed';
+//     await currentAppt.save();
 
-    return res.status(201).json({ 
-      success: true, 
-      status: "success", 
-      message: "Prescription saved and appointment status synced as Completed successfully!", 
-      data: savedConsultation 
-    });
+//     return res.status(201).json({ 
+//       success: true, 
+//       status: "success", 
+//       message: "Prescription saved and appointment status synced as Completed successfully!", 
+//       data: savedConsultation 
+//     });
 
-  } catch (error) {
-    console.error("❌ BACKEND VALIDATION FAILURE IN CREATION:", error);
-    return res.status(500).json({ 
-      success: false, 
-      status: "error", 
-      message: "Internal server error while saving prescription.", 
-      error: error.message 
-    });
-  }
-};
+//   } catch (error) {
+//     console.error("❌ BACKEND VALIDATION FAILURE IN CREATION:", error);
+//     return res.status(500).json({ 
+//       success: false, 
+//       status: "error", 
+//       message: "Internal server error while saving prescription.", 
+//       error: error.message 
+//     });
+//   }
+// };
