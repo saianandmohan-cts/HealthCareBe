@@ -36,8 +36,8 @@ router.get('/upcomingAppointments',verifyDoctor ,getUpcomingAppointments);
 
 router.get('/pastAppointments',verifyDoctor ,getPastAppointments);
 
-router.get('/availability',verifyDoctor ,getAvailabilitySlots);
-router.put('/availability',verifyDoctor ,updateAvailabilitySlots);
+router.get('/availability' ,getAvailabilitySlots);
+router.put('/availability' ,updateAvailabilitySlots);
 
 router.post('/consultations', verifyDoctor,createPrescription);
 

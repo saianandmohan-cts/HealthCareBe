@@ -1,41 +1,97 @@
-const Patient = require('../models/patient')
-const Appointment = require('../models/appointment')
+const Patient = require('../models/patient');
+const Appointment = require('../models/appointment');
 const Consultations = require('../models/Consultations');
 const Doctor = require('../models/doctor');
 
+const { generatePrescriptionPDF } = require('../utils/pdfGenerator'); 
+const mongoose = require('mongoose'); // ✅ TOP PAR YEH REQUIRMENT CHECK KAR LENA
+
+
+// =========================================================================
+// 1. GET PATIENT DASHBOARD
+// =========================================================================
 exports.getPatientDashboard = async (req, res, next) => {
     try {
-        // ✅ 100% DYNAMIC: URL parameter ko goli maro! Direct login session cookie se patientId uthao
-        const patientId = req.user.pId; 
+        const patientId = req.user && req.user.pId ? String(req.user.pId) : null;
 
         if (!patientId) {
-            return res.status(401).json({ message: "Session expired, please login again" });
+            return res.status(401).json({ 
+                success: false, 
+                message: "Session expired ya token mil nahi raha hai. Kripya fir se login karein." 
+            });
         }
 
         const patientList = await Patient.findOne({ patientId: patientId });
 
         if (!patientList) {
-            return res.status(404).json({ message: 'Patient not Found' });
+            return res.status(404).json({ success: false, message: 'Patient not Found inside database' });
         }
 
-        // Is patient ki saari appointments nikal lo
-        const appointments = await Appointment.find({ patient: patientId });
+        // ✅ FIX: String matching ki jagah Patient ke real MongoDB _id se find karega
+        const appointments = await Appointment.find({ patient: patientList._id });
 
-        res.status(200).json({ 
-            message: 'Patient Dashboard Fetched Successfully', 
-            patientList, 
-            appointments 
+        return res.status(200).json({
+            message: 'Patient Dashboard Fetched Successfully',
+            patientList,
+            appointments
         });
     
     } catch (err) {
         next(err);
     }
-}
+};
 
+exports.viewPrescription = async (req, res) => {
+    try {
+        // Frontend se seedhe Appointment ya Consultation ki Hex _id aayegi
+        const id = req.params.consultationId || req.query.consultationId;
+
+        // ✅ 1. SINGLE CLEAN POPULATED QUERY
+        // Mongoose automatic consultation ke sath sath full patient details dhoondh nikalega!
+        const consultation = await Consultations.findOne({ appointmentId: id }).populate('patient') ||
+                             await Consultations.findById(id).populate('patient');
+        
+        if (!consultation) {
+            return res.status(404).json({ success: false, message: "Prescription not found." });
+        }
+
+        // ✅ 2. Fetch associated Doctor Info
+        const doctorData = await Doctor.findOne({ doctorId: consultation.doctorId });
+        const patientData = consultation.patient; 
+
+        const responseData = {
+            consultationId: consultation._id, // Core hex reference database token
+            date: consultation.date,
+            patient: {
+                name: patientData ? patientData.name : 'Unknown Patient',
+                age: patientData ? patientData.age : 'N/A',
+                phone: patientData ? patientData.contactNumber : 'N/A',
+                email: patientData ? patientData.email : 'N/A',
+                gender: patientData ? patientData.gender : 'Not Specified',
+                address: patientData ? patientData.address : 'N/A',
+                allergies: patientData ? patientData.allergy.join(', ') : 'None',
+                condition: consultation.notes 
+            },
+            medications: consultation.prescriptions,
+            physician: {
+                name: doctorData ? doctorData.name : 'Unknown Doctor',
+                department: doctorData ? doctorData.department : 'General'
+            }
+        };
+
+        return res.status(200).json(responseData);
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
+};
+
+
+
+
+// 4. UPDATE PATIENT PROFILE (Kept exact same)
 exports.updatePatient = async (req, res) => {
   try {
-    const patientId=String(req.params.patientId)
-
+    const patientId = String(req.params.patientId);
     const updates = {};
 
     if (req.body.email) updates.email = req.body.email;
@@ -43,115 +99,132 @@ exports.updatePatient = async (req, res) => {
     if (req.body.address) updates.address = req.body.address;
     if (req.body.allergy) updates.allergy = req.body.allergy;
 
-    const updatedPatient = await Patient.findOneAndUpdate({patientId} , { $set: updates }, { new: true } );
-
-    res.status(201).json({message: "Patient updated successfully", patient: updatedPatient });
+    const updatedPatient = await Patient.findOneAndUpdate({ patientId }, { $set: updates }, { new: true });
+    return res.status(201).json({ message: "Patient updated successfully", patient: updatedPatient });
 
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    return res.status(500).json({ message: err.message });
   }
 };
 
 
 
+
+
 // =========================================================================
-// 1. DOWNLOAD PRESCRIPTION (Returns Raw Binary PDF Data for Direct Download)
+// 2. DOWNLOAD PRESCRIPTION (PDF Generator - THE DETECTOR SHIELD)
 // =========================================================================
-exports.downloadPrescriptionData = async (req, res) => {
+const downloadPrescriptionLogic = async (req, res) => {
     try {
-        const id = req.params.consultationId || req.params.id;
-        const consultation = await Consultations.findOne({ consultationId: id });
-        if (!consultation) {
-            return res.status(404).json({ success: false, message: "Consultation record not found" });
+        const id = req.params.consultationId || req.params.id || req.query.consultationId || req.query.id;
+        console.log("📥 [PDF ENGINE] STARTING BINARY PIPELINE FOR ID:", id);
+
+        if (!id) {
+            return res.status(400).json({ success: false, message: "ID parameter missing." });
         }
 
-        const appointment = await Appointment.findOne({ appointmentId: consultation.appointmentId }) || await Appointment.findById(consultation.appointmentId);
+        let consultation = null;
+
+        // Route A: Hex ObjectId mapping
+        if (id.match(/^[0-9a-fA-F]{24}$/)) {
+            consultation = await Consultations.findOne({ appointmentId: id }) ||
+                           await Consultations.findOne({ appointmentId: String(id) }) ||
+                           await Consultations.findById(id);
+        }
+
+        // Route B: Custom sequential integer check (e.g., 5001)
+        if (!consultation && !isNaN(id)) {
+            consultation = await Consultations.findOne({ consultationId: Number(id) });
+        }
+
+        // Route C: String code standard validation fallback (e.g., 'A1003')
+        if (!consultation) {
+            const tempAppt = await Appointment.findOne({ appointmentId: String(id) });
+            if (tempAppt) {
+                consultation = await Consultations.findOne({ appointmentId: tempAppt._id }) ||
+                               await Consultations.findOne({ appointmentId: String(tempAppt._id) });
+            }
+        }
+
+        if (!consultation) {
+            console.log("❌ [PDF ENGINE] NOT FOUND IN DB:", id);
+            return res.status(404).json({ success: false, message: "No prescription documentation matches this key reference." });
+        }
+
+        // Relational map fetching
+        const appointment = await Appointment.findById(consultation.appointmentId).populate('patient') ||
+                            await Appointment.findOne({ appointmentId: consultation.appointmentId }).populate('patient');
+        
         if (!appointment) {
             return res.status(404).json({ success: false, message: "Associated Appointment not found" });
         }
 
         const doctorData = await Doctor.findOne({ doctorId: appointment.doctorId });
-        const patientData = await Patient.findOne({ patientId: appointment.patientId });
+        const patientData = appointment.patient; 
 
-        const pName = patientData ? patientData.name : 'Unknown Patient';
-        const pAge = patientData ? patientData.age : 'N/A';
-        const pGender = patientData ? patientData.gender : 'Not Specified';
-        const pPhone = patientData ? patientData.contactNumber : 'N/A';
-        const dName = doctorData ? doctorData.name : 'Unknown Doctor';
-        const pDate = consultation.date ? new Date(consultation.date).toLocaleDateString() : new Date().toLocaleDateString();
-
-        // Natively tell the browser this is a downloadable PDF file attachment
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=Prescription_${id}.pdf`);
-
+        // ✅ CRITICAL STEP: Pehle hum payload ko ekdam safe flat structure denge taaki purani aur nayi dono keys templates ko mil sakein
         const pdfPayload = {
-            id,
-            consultation,
+            id: consultation.consultationId || 5001,
+            consultationId: consultation.consultationId || 5001,
+            consultation: consultation,
             pName: patientData ? patientData.name : 'Unknown Patient',
             pAge: patientData ? patientData.age : 'N/A',
             pGender: patientData ? patientData.gender : 'Not Specified',
             pPhone: patientData ? patientData.contactNumber : 'N/A',
             dName: doctorData ? doctorData.name : 'Unknown Doctor',
-            pDate: consultation.date ? new Date(consultation.date).toLocaleDateString() : new Date().toLocaleDateString()
-        };
-
-        // Call modular pdf framework generator helper trigger
-        generatePrescriptionPDF(res, pdfPayload);
-    } catch (error) {
-        console.error("Critical Binary Generation Error Flow:", error);
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, message: "Internal server error during PDF generation." });
-        }
-    }
-};
-
-// =========================================================================
-// 2. VIEW PRESCRIPTION (Returns Clean JSON for Angular Template Rendering)
-// =========================================================================
-exports.viewPrescription = async (req, res) => {
-    try {
-        const id = req.params.consultationId || req.params.id;
-        const consultation = await Consultations.findOne({ consultationId: id });
-        
-        if (!consultation) {
-            return res.status(404).json({ success: false, message: "The requested prescription record does not exist." });
-        }
-
-        const appointment = await Appointment.findOne({ appointmentId: consultation.appointmentId }) || await Appointment.findById(consultation.appointmentId);
-        if (!appointment) {
-            return res.status(404).json({ success: false, message: "Associated appointment details could not be found." });
-        }
-
-        const doctorData = await Doctor.findOne({ doctorId: appointment.doctorId });
-        const patientData = await Patient.findOne({ patientId: appointment.patientId });
-
-        const responseData = {
-            consultationId: consultation.consultationId,
-            date: consultation.date ? new Date(consultation.date).toLocaleDateString() : 'N/A',
+            pDate: consultation.date || new Date().toLocaleDateString(),
+            notes: consultation.notes || "General clinical history review details",
+            
             patient: {
                 name: patientData ? patientData.name : 'Unknown Patient',
                 age: patientData ? patientData.age : 'N/A',
-                phone: patientData ? patientData.contactNumber : 'N/A',
-                email: patientData ? patientData.email : 'N/A',
                 gender: patientData ? patientData.gender : 'Not Specified',
-                address: patientData ? patientData.address : 'Address not on file',
-                allergies: (patientData && patientData.allergy.length > 0) ? patientData.allergy.join(', ') : 'None recorded',
-                condition: consultation.notes 
+                phone: patientData ? patientData.contactNumber : 'N/A',
+                address: patientData ? patientData.address : 'N/A',
+                allergies: patientData && patientData.allergy ? patientData.allergy.join(', ') : 'None recorded',
+                condition: consultation.notes || "General Follow-up"
             },
-            medications: consultation.prescriptions.map(p => ({
-                name: p.medicineName,
-                dosage: p.dosage,
-                route: p.route,
-                frequency: p.frequency
-            })),
             physician: {
                 name: doctorData ? doctorData.name : 'Unknown Doctor',
-                department: doctorData ? doctorData.department : 'General'
-            }
+                department: doctorData ? doctorData.department : 'General Medicine'
+            },
+            prescriptions: (consultation.prescriptions || []).map(p => ({
+                medicineName: p.medicineName || p.name || 'General Medicine',
+                dosage: p.dosage || 'N/A',
+                route: p.route || 'Oral',
+                frequency: p.frequency || 'N/A'
+            }))
         };
 
-        res.status(200).json(responseData);
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
+        // ✅ CRITICAL SAFETY WRAPPER FOR STREAM GENERATOR
+        try {
+            console.log("🚀 COMPILING PDF DATA THROUGH PIPELINE RENDERER...");
+            
+            // Response headers tabhi set karein jab query fully validation clear kar chuki ho
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=Prescription_${consultation.consultationId || id}.pdf`);
+            
+            // Trigger the pdf function
+            return generatePrescriptionPDF(res, pdfPayload);
+        } catch (pdfBuilderErr) {
+            console.error("🚨 ASYNC PDF ENGINE CRASHED INTERNALLY:", pdfBuilderErr);
+            
+            // Stream override reset safely
+            res.setHeader('Content-Type', 'application/json');
+            return res.status(500).json({ 
+                success: false, 
+                message: "PDF generatePrescriptionPDF library ke andar crash ho gaya.", 
+                error: pdfBuilderErr.message 
+            });
+        }
+
+    } catch (error) {
+        console.error("❌ CRITICAL ERROR IN CONTROLLER BLOCK:", error);
+        res.setHeader('Content-Type', 'application/json');
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// Unified dynamic bindings
+exports.downloadPrescriptionData = downloadPrescriptionLogic;
+exports.downloadPrescriptionFile = downloadPrescriptionLogic;

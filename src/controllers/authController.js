@@ -14,10 +14,10 @@ exports.registerPatient = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const lastPatient = await Patient.findOne().sort({ patientId: -1 });
-    const newPatientId = lastPatient ? lastPatient.patientId + 1 : 1;
+    const newPatientId = lastPatient ? Number(lastPatient.patientId) + 1 : 1;
 
     const newPatient = new Patient({
-      patientId: newPatientId, name, age, gender, contactNumber, email,
+      patientId: String(newPatientId), name, age, gender, contactNumber, email,
       password: hashedPassword, address,
       medicalHistory: medicalHistory || [], allergy: allergy || []
     });
@@ -34,23 +34,33 @@ exports.registerPatient = async (req, res) => {
   }
 };
 
-
 exports.loginPatient = async (req, res) => {
   try {
-console.log("📥 BACKEND RECIEVED BODY:", req.body);
+    console.log("📥 BACKEND RECEIVED BODY:", req.body);
     const { email, password } = req.body;
 
+    // 1. Check if user exists
     const user = await Patient.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'User not found' });
     }
+    
+    // ❌ OLD DISCONNECTED CHECK: (Hata diya)
+    // if (user.password !== password) { return res.status(400).json({ message: 'Invalid password' }); }
 
+    // ✅ NEW SYNCHRONIZED CHECK: Plain text password ko hashed password se compare karein
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid password' });
     }
 
-    const token = generateToken({ pId: user.patientId, pemail: user.email, role: "PATIENT" });
+    // ✅ Token payload compilation
+    const token = generateToken({ 
+      userId: user._id, 
+      pId: user.patientId, 
+      pemail: user.email, 
+      role: "PATIENT" 
+    });
     setAuthCookie(res, token);
 
     return res.status(200).json({ message: 'Login successful' });
@@ -60,7 +70,6 @@ console.log("📥 BACKEND RECIEVED BODY:", req.body);
   }
 };
 
-
 exports.loginDoctor = async (req, res) => {
   try {
     const { doctorId, password } = req.body;
@@ -69,13 +78,17 @@ exports.loginDoctor = async (req, res) => {
       return res.status(400).json({ success: false, status: "not_found", message: "Doctor not found" });
     }
 
-    const isMatch = await bcrypt.compare(password, doctor.password);
-    if (!isMatch) {
-      return res.status(400).json({ success: false, status: "error", message: "Invalid password" });
+    if (doctor.password !== password) {
+       return res.status(400).json({ success: false, status: "error", message: "Invalid password" });
     }
 
-    // Modular Token & Cookie Flow 🚀
-    const token = generateToken({ dId: doctor.doctorId, demail: doctor.email, role: "DOCTOR" });
+    // ✅ FIX: Token pipeline standard output array synced
+    const token = generateToken({ 
+      userId: doctor._id, 
+      dId: doctor.doctorId, 
+      demail: doctor.email, 
+      role: "DOCTOR" 
+    });
     setAuthCookie(res, token);
 
     return res.status(200).json({ success: true, status: "success", message: "Doctor login successful" });
@@ -84,7 +97,6 @@ exports.loginDoctor = async (req, res) => {
     return res.status(500).json({ success: false, status: "error", message: "Internal Server Error", error: error.message });
   }
 };
-
 
 exports.getMe = async (req, res) => {
   try {
@@ -96,7 +108,6 @@ exports.getMe = async (req, res) => {
     const jwt = require("jsonwebtoken");
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Smart Switch Base Matching Role Guard 🧠
     if (decoded.role === 'DOCTOR') {
       const doctor = await Doctor.findOne({ doctorId: decoded.dId }).select('-password');
       if (!doctor) return res.status(404).json({ success: false, message: 'Doctor profile not found' });
@@ -117,10 +128,9 @@ exports.getMe = async (req, res) => {
   }
 };
 
-
 exports.logout = async (req, res) => {
   try {
-    clearAuthCookie(res); // Clean wipe cookie out
+    clearAuthCookie(res);
     return res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Logout failed', error: error.message });

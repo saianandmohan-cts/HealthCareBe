@@ -35,34 +35,46 @@ exports.setAvailability = async (req, res, next) => {
 };
 
 // 2. BOOK/MODIFY APPOINTMENT: Patient ke liye slots load karna
-exports.getAvailableSlots = async (req, res, next) => {
-    try {
-        const { doctorId, date } = req.query;
-        
-        
-        const searchDateStr = date.split('T')[0]; 
-        const allAvailabilities = await Availability.find({ doctorId: String(doctorId) });
+exports.getAvailabilitySlots = async (req, res, next) => {
+  try {
+    // Agar URL me doctorId query me aa rahi hai (Patient side se), toh wo lo, nahi toh logged-in doctor ki ID lo
+    const targetDoctorId = req.query.doctorId || (req.doctor ? req.doctor.dId : null);
+    const targetDate = req.query.date;
 
-        
-        const availability = allAvailabilities.find(a => {
-            const dbDateStr = new Date(a.date).toISOString().split('T')[0];
-            return dbDateStr === searchDateStr;
-        });
-
-
-        if (!availability) {
-            return res.status(200).json({
-                message: "No availability found for this date",
-                status: false,
-                slots: [] // Frontend crash nahi hoga, empty slots dega
-            });
-        }
-
-        return res.status(200).json({
-            status: true,
-            slots: availability.slots
-        });
-    } catch (err) {
-        next(err);
+    if (!targetDoctorId) {
+      return res.status(400).json({ success: false, message: "Doctor ID is required" });
     }
+
+    let query = { doctorId: String(targetDoctorId) };
+
+    // Agar patient ne specific date select ki hai, toh date filter bhi jodo
+    if (targetDate) {
+      const isoDateString = new Date(targetDate).toISOString().split('T')[0];
+      const parsedDate = new Date(`${isoDateString}T00:00:00.000Z`);
+      query.date = parsedDate;
+    }
+
+    console.log("Fetching slots with query:", query);
+    const records = await Availability.find(query).sort({ date: 1 });
+
+    // Agar pure din ka object mila hai, toh uski key structured data format me bhejein
+    // Taaki frontend ka slotsArray loop safely chal sake
+    if (records && records.length > 0) {
+      return res.status(200).json({
+        success: true,
+        status: "success",
+        data: records[0] // Pehla matching day record bhej rahe hain jisme slots array hai
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      status: "not_found",
+      message: "No Availability Slots Present for this date"
+    });
+
+  } catch (err) {
+    console.error("Error in getAvailabilitySlots:", err);
+    next(err);
+  }
 };
