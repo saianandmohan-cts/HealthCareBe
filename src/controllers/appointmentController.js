@@ -1,19 +1,16 @@
 const Appointment = require('../models/appointment');
 const Availability = require('../models/doc_availability'); 
 const Doctor = require('../models/doctor');            
-const Patient = require('../models/patient'); // ✅ Added Patient Import
+const Patient = require('../models/patient'); 
 
 exports.bookAppointment = async (req, res) => {
   try {
-    console.log("== BACKEND HIT RECEIVED == ", req.body); 
-
     const { patient_id, doctorId, date, time, mode, reason } = req.body; 
     
     if (!patient_id || !doctorId || !date || !time || !mode || !reason) {
         return res.status(400).json({ message: "All fields are required" });
     }
 
-    // ✅ STEP 1: Custom patientId se check karo aur uski real ObjectId nikalo
     const patientData = await Patient.findOne({ patientId: String(patient_id) });
     if (!patientData) {
         return res.status(404).json({ message: "Patient not found in database" });
@@ -21,11 +18,10 @@ exports.bookAppointment = async (req, res) => {
 
     const appointmentId = Date.now().toString();    
 
-    // ✅ STEP 2: Main Appointment Document Create karo (Real ObjectId ke sath)
     const appointment = await Appointment.create({ 
       appointmentId, 
       doctorId, 
-      patient: patientData._id, // ✅ Saved as MongoDB ObjectId reference
+      patient: patientData._id, 
       date: new Date(date), 
       time, 
       mode,
@@ -33,9 +29,6 @@ exports.bookAppointment = async (req, res) => {
       status: "Scheduled" 
     });
 
-    console.log("🎯 Main Appointment Document Saved:", appointment);
-
-    // ✅ STEP 3: Remaining updates safe blocks me
     try {
       const searchDate = new Date(date);
       searchDate.setHours(0,0,0,0);
@@ -44,18 +37,14 @@ exports.bookAppointment = async (req, res) => {
           { doctorId: String(doctorId), date: searchDate, "slots.time": time },
           { $set: { "slots.$.isBooked": true } }
       );
-    } catch (slotErr) {
-      console.error("Availability slot lock failed:", slotErr.message);
-    }
+    } catch (slotErr) {}
 
     try {
       await Doctor.updateOne(
           { doctorId: String(doctorId) },
-          { $push: { appointments: appointment._id } } // ✅ Will now match ref: "Appointment"
+          { $push: { appointments: appointment._id } } 
       );
-    } catch (docErr) {
-      console.error("Doctor array update failed:", docErr.message);
-    }
+    } catch (docErr) {}
 
     return res.status(201).json({ 
       message: "Appointment booked successfully", 
@@ -63,12 +52,10 @@ exports.bookAppointment = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ CRITICAL BOOKING ERROR:", err.message);
     return res.status(500).json({ message: "Server Error: " + err.message });
   }
 };
 
-// modifyAppointment aur getById bilkul pehle jaise same rahenge
 exports.modifyAppointment = async (req, res) => {
   try {
     const appointmentId = req.params.appointmentId;
@@ -111,9 +98,7 @@ exports.modifyAppointment = async (req, res) => {
             { doctorId: String(updatedAppointment.doctorId), date: newDate, "slots.time": updatedAppointment.time },
             { $set: { "slots.$.isBooked": true } }
         );
-      } catch (slotErr) {
-        console.error("Availability update failed during modification:", slotErr.message);
-      }
+      } catch (slotErr) {}
     }
 
     res.status(200).json({ success: true, message: "Appointment updated successfully", data: updatedAppointment });

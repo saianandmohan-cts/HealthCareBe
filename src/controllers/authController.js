@@ -36,25 +36,18 @@ exports.registerPatient = async (req, res) => {
 
 exports.loginPatient = async (req, res) => {
   try {
-    console.log("📥 BACKEND RECEIVED BODY:", req.body);
     const { email, password } = req.body;
 
-    // 1. Check if user exists
     const user = await Patient.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: 'User not found' });
     }
     
-    // ❌ OLD DISCONNECTED CHECK: (Hata diya)
-    // if (user.password !== password) { return res.status(400).json({ message: 'Invalid password' }); }
-
-    // ✅ NEW SYNCHRONIZED CHECK: Plain text password ko hashed password se compare karein
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Invalid password' });
     }
 
-    // ✅ Token payload compilation
     const token = generateToken({ 
       userId: user._id, 
       pId: user.patientId, 
@@ -65,7 +58,6 @@ exports.loginPatient = async (req, res) => {
 
     return res.status(200).json({ message: 'Login successful' });
   } catch (error) {
-    console.error("CRITICAL LOGIN ERROR TRACE:", error);
     return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
   }
 };
@@ -82,7 +74,6 @@ exports.loginDoctor = async (req, res) => {
        return res.status(400).json({ success: false, status: "error", message: "Invalid password" });
     }
 
-    // ✅ FIX: Token pipeline standard output array synced
     const token = generateToken({ 
       userId: doctor._id, 
       dId: doctor.doctorId, 
@@ -93,7 +84,6 @@ exports.loginDoctor = async (req, res) => {
 
     return res.status(200).json({ success: true, status: "success", message: "Doctor login successful" });
   } catch (error) {
-    console.error("CRITICAL DOCTOR LOGIN ERROR TRACE:", error);
     return res.status(500).json({ success: false, status: "error", message: "Internal Server Error", error: error.message });
   }
 };

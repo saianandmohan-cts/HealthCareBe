@@ -5,7 +5,7 @@ const cookieOptions = {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 24 * 60 * 60 * 1000 // 1 Day
+    maxAge: 24 * 60 * 60 * 1000
 };
 
 exports.generateToken = (payload) => {
@@ -67,7 +67,6 @@ exports.verifyDoctor = (req, res, next) => {
 
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        //console.log(decoded);
 
         if (decoded.role !== 'DOCTOR') {
             return res.status(403).json({ success: false, message: 'Access Denied: Unauthorized Role' });

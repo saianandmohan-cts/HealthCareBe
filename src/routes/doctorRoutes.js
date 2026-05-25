@@ -11,10 +11,11 @@ const {
     getAvailabilitySlots,
     getPastAppointments,
     updateAvailabilitySlots,
-    createPrescription } = require('../controllers/doctorController');
+    createPrescription,
+    markAsCompletedStandalone} = require('../controllers/doctorController');
 const { verifyDoctor } = require('../middleware/auth');
 
-// router.get('/profile',profileInfo);
+
 
 
 router.get('/allDoctor' ,getAllDoctorInfo);
@@ -24,7 +25,7 @@ router.get('/getDoctor',verifyDoctor ,getDoctor);
 
 
 
-//add this in doctor Controller
+
 
 router.delete('/deleteAppointment/:id',verifyDoctor ,deleteAppointment);
 
@@ -40,6 +41,8 @@ router.get('/availability' ,getAvailabilitySlots);
 router.put('/availability' ,updateAvailabilitySlots);
 
 router.post('/consultations', verifyDoctor,createPrescription);
+
+router.patch('/markAsCompleted/:appointmentId',markAsCompletedStandalone);
 
 
 

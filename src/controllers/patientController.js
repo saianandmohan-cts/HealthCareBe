@@ -2,14 +2,9 @@ const Patient = require('../models/patient');
 const Appointment = require('../models/appointment');
 const Consultations = require('../models/Consultations');
 const Doctor = require('../models/doctor');
-
 const { generatePrescriptionPDF } = require('../utils/pdfGenerator'); 
-const mongoose = require('mongoose'); // ✅ TOP PAR YEH REQUIRMENT CHECK KAR LENA
+const mongoose = require('mongoose');
 
-
-// =========================================================================
-// 1. GET PATIENT DASHBOARD
-// =========================================================================
 exports.getPatientDashboard = async (req, res, next) => {
     try {
         const patientId = req.user && req.user.pId ? String(req.user.pId) : null;
@@ -17,17 +12,16 @@ exports.getPatientDashboard = async (req, res, next) => {
         if (!patientId) {
             return res.status(401).json({ 
                 success: false, 
-                message: "Session expired ya token mil nahi raha hai. Kripya fir se login karein." 
+                message: "Session expired! Login Again." 
             });
         }
 
         const patientList = await Patient.findOne({ patientId: patientId });
 
         if (!patientList) {
-            return res.status(404).json({ success: false, message: 'Patient not Found inside database' });
+            return res.status(404).json({ success: false, message: 'Patient not Found' });
         }
 
-        // ✅ FIX: String matching ki jagah Patient ke real MongoDB _id se find karega
         const appointments = await Appointment.find({ patient: patientList._id });
 
         return res.status(200).json({
@@ -43,11 +37,8 @@ exports.getPatientDashboard = async (req, res, next) => {
 
 exports.viewPrescription = async (req, res) => {
     try {
-        // Frontend se seedhe Appointment ya Consultation ki Hex _id aayegi
         const id = req.params.consultationId || req.query.consultationId;
 
-        // ✅ 1. SINGLE CLEAN POPULATED QUERY
-        // Mongoose automatic consultation ke sath sath full patient details dhoondh nikalega!
         const consultation = await Consultations.findOne({ appointmentId: id }).populate('patient') ||
                              await Consultations.findById(id).populate('patient');
         
@@ -55,12 +46,11 @@ exports.viewPrescription = async (req, res) => {
             return res.status(404).json({ success: false, message: "Prescription not found." });
         }
 
-        // ✅ 2. Fetch associated Doctor Info
         const doctorData = await Doctor.findOne({ doctorId: consultation.doctorId });
         const patientData = consultation.patient; 
 
         const responseData = {
-            consultationId: consultation._id, // Core hex reference database token
+            consultationId: consultation._id, 
             date: consultation.date,
             patient: {
                 name: patientData ? patientData.name : 'Unknown Patient',
@@ -85,10 +75,6 @@ exports.viewPrescription = async (req, res) => {
     }
 };
 
-
-
-
-// 4. UPDATE PATIENT PROFILE (Kept exact same)
 exports.updatePatient = async (req, res) => {
   try {
     const patientId = String(req.params.patientId);
@@ -107,17 +93,9 @@ exports.updatePatient = async (req, res) => {
   }
 };
 
-
-
-
-
-// =========================================================================
-// 2. DOWNLOAD PRESCRIPTION (PDF Generator - THE DETECTOR SHIELD)
-// =========================================================================
 const downloadPrescriptionLogic = async (req, res) => {
     try {
         const id = req.params.consultationId || req.params.id || req.query.consultationId || req.query.id;
-        console.log("📥 [PDF ENGINE] STARTING BINARY PIPELINE FOR ID:", id);
 
         if (!id) {
             return res.status(400).json({ success: false, message: "ID parameter missing." });
@@ -125,19 +103,16 @@ const downloadPrescriptionLogic = async (req, res) => {
 
         let consultation = null;
 
-        // Route A: Hex ObjectId mapping
         if (id.match(/^[0-9a-fA-F]{24}$/)) {
             consultation = await Consultations.findOne({ appointmentId: id }) ||
                            await Consultations.findOne({ appointmentId: String(id) }) ||
                            await Consultations.findById(id);
         }
 
-        // Route B: Custom sequential integer check (e.g., 5001)
         if (!consultation && !isNaN(id)) {
             consultation = await Consultations.findOne({ consultationId: Number(id) });
         }
 
-        // Route C: String code standard validation fallback (e.g., 'A1003')
         if (!consultation) {
             const tempAppt = await Appointment.findOne({ appointmentId: String(id) });
             if (tempAppt) {
@@ -147,11 +122,9 @@ const downloadPrescriptionLogic = async (req, res) => {
         }
 
         if (!consultation) {
-            console.log("❌ [PDF ENGINE] NOT FOUND IN DB:", id);
             return res.status(404).json({ success: false, message: "No prescription documentation matches this key reference." });
         }
 
-        // Relational map fetching
         const appointment = await Appointment.findById(consultation.appointmentId).populate('patient') ||
                             await Appointment.findOne({ appointmentId: consultation.appointmentId }).populate('patient');
         
@@ -162,7 +135,6 @@ const downloadPrescriptionLogic = async (req, res) => {
         const doctorData = await Doctor.findOne({ doctorId: appointment.doctorId });
         const patientData = appointment.patient; 
 
-        // ✅ CRITICAL STEP: Pehle hum payload ko ekdam safe flat structure denge taaki purani aur nayi dono keys templates ko mil sakein
         const pdfPayload = {
             id: consultation.consultationId || 5001,
             consultationId: consultation.consultationId || 5001,
@@ -196,35 +168,25 @@ const downloadPrescriptionLogic = async (req, res) => {
             }))
         };
 
-        // ✅ CRITICAL SAFETY WRAPPER FOR STREAM GENERATOR
         try {
-            console.log("🚀 COMPILING PDF DATA THROUGH PIPELINE RENDERER...");
-            
-            // Response headers tabhi set karein jab query fully validation clear kar chuki ho
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=Prescription_${consultation.consultationId || id}.pdf`);
             
-            // Trigger the pdf function
             return generatePrescriptionPDF(res, pdfPayload);
         } catch (pdfBuilderErr) {
-            console.error("🚨 ASYNC PDF ENGINE CRASHED INTERNALLY:", pdfBuilderErr);
-            
-            // Stream override reset safely
             res.setHeader('Content-Type', 'application/json');
             return res.status(500).json({ 
                 success: false, 
-                message: "PDF generatePrescriptionPDF library ke andar crash ho gaya.", 
+                message: "PDF generatePrescriptionPDF crashed", 
                 error: pdfBuilderErr.message 
             });
         }
 
     } catch (error) {
-        console.error("❌ CRITICAL ERROR IN CONTROLLER BLOCK:", error);
         res.setHeader('Content-Type', 'application/json');
         return res.status(500).json({ success: false, error: error.message });
     }
 };
 
-// Unified dynamic bindings
 exports.downloadPrescriptionData = downloadPrescriptionLogic;
 exports.downloadPrescriptionFile = downloadPrescriptionLogic;

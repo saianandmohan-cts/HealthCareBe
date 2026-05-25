@@ -1,19 +1,19 @@
 const mongoose = require('mongoose');
 
 const consultationSchema = new mongoose.Schema({
-  // Automatic Unique Hex Reference directly linked to Appointment document
+
   appointmentId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Appointment',
     required: true
   },
-  // Directly linked to Patient document for standalone analytics tracking
+  
   patient: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Patient',
     required: true
   },
-  // Custom string identifier mapped with doctor schema fields
+  
   doctorId: {
     type: String, 
     required: true

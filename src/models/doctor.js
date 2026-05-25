@@ -39,7 +39,7 @@ const doctorSchema = new mongoose.Schema({
     type: String,
     default: 'DOCTOR'
   },
-  // Sahi Reference: Kyunki controller isme Appointment ki ID push karta hai
+ 
   appointments: [
     {
       type: mongoose.Schema.Types.ObjectId,
