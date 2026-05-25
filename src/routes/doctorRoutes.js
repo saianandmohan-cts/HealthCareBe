@@ -5,14 +5,14 @@ const {
     getDoctor,
     getAllDoctorInfo,
     getDoctorById,
-    deleteAppointment,
     getAllAppointments,
     getUpcomingAppointments,
     getAvailabilitySlots,
     getPastAppointments,
     updateAvailabilitySlots,
     createPrescription,
-    markAsCompletedStandalone} = require('../controllers/doctorController');
+    markAsCompletedStandalone,
+    cancelAppointment} = require('../controllers/doctorController');
 const { verifyDoctor } = require('../middleware/auth');
 
 
@@ -27,7 +27,7 @@ router.get('/getDoctor',verifyDoctor ,getDoctor);
 
 
 
-router.delete('/deleteAppointment/:id',verifyDoctor ,deleteAppointment);
+router.delete('/deleteAppointment/:id',verifyDoctor ,cancelAppointment);
 
 
 

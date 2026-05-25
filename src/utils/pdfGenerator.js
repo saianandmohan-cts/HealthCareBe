@@ -1,7 +1,7 @@
 const PDFDocument = require('pdfkit');
 
 exports.generatePrescriptionPDF = (res, data) => {
-    const id = data.consultationId || data.id || 5001;
+    const id = data.id || data.consultationId || (data.consultation && data.consultation._id) || 'N/A';
     const pDate = data.pDate || (data.date ? new Date(data.date).toLocaleDateString() : new Date().toLocaleDateString());
     
     const pName = data.pName || data.patient?.name || 'Unknown Patient';
@@ -21,6 +21,7 @@ exports.generatePrescriptionPDF = (res, data) => {
     const doc = new PDFDocument({ size: 'A4', margin: 40 });
 
     doc.pipe(res);
+
 
     doc.fillColor('#0f766e').fontSize(26).text('1C Hospital', 40, 40, { align: 'left', font: 'Helvetica-Bold' });
     doc.fontSize(10).fillColor('#66788a').text('PREMIUM HEALTHCARE SERVICES', 41, doc.y);
@@ -67,6 +68,7 @@ exports.generatePrescriptionPDF = (res, data) => {
     doc.rect(40, doc.y, 515, 1).fill('#d8e4ea');
     doc.moveDown(1.2);
 
+
     doc.fillColor('#0f766e').fontSize(13).text('Prescribed Medications List', 40, doc.y, { font: 'Helvetica-Bold' });
     doc.moveDown(0.6);
 
@@ -107,8 +109,8 @@ exports.generatePrescriptionPDF = (res, data) => {
         currentY += 24;
     }
 
+
     doc.y = currentY + 40; 
-    
     if (doc.y > 700) {
         doc.addPage();
         doc.y = 50;

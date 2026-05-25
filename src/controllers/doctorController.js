@@ -47,15 +47,29 @@ exports.getDoctorById = async (req, res, next) => {
   }
 };
 
-exports.deleteAppointment = async (req, res, next) => {
+exports.cancelAppointment = async (req, res, next) => {
   try {
     const appointmentId = req.params.id;
-    const result = await Appointment.deleteOne({ appointmentId });
+    
+    const appointment = await Appointment.findOneAndUpdate(
+      { appointmentId },
+      { $set: { status: 'Cancelled' } },
+      { new: true }
+    );
 
-    if (result.deletedCount > 0) {
-      return res.status(200).json({ success: true, status: "success", message: `Appointment ${appointmentId} deleted successfully` });
+    if (appointment) {
+      return res.status(200).json({ 
+        success: true, 
+        status: "success", 
+        message: `Appointment ${appointmentId} cancelled.`,
+        data: appointment 
+      });
     } else {
-      return res.status(404).json({ success: false, status: "not_found", message: `Appointment ${appointmentId} doesn't exist` });
+      return res.status(404).json({ 
+        success: false, 
+        status: "not_found", 
+        message: `Appointment ${appointmentId} doesn't exist` 
+      });
     }
   } catch (err) {
     next(err);
@@ -351,14 +365,12 @@ exports.markAsCompletedStandalone = async (req, res, next) => {
     appointment.status = 'Completed';
     await appointment.save();
 
-    let existingConsultation = await Consultations.findOne({ appointmentId: appointment._id }) ||
+   let existingConsultation = await Consultations.findOne({ appointmentId: appointment._id }) ||
                                await Consultations.findOne({ appointmentId: String(appointment._id) });
-                               
-    if (!existingConsultation && appointment.appointmentId) {
-      existingConsultation = await Consultations.findOne({ appointmentId: String(appointment.appointmentId).trim() });
-    }
                                  
     if (!existingConsultation) {
+      console.log("🆕 NO RECORD CORRELATION INSIDE DB, INJECTING COMPACT SYSTEM ROOT ENTRY...");
+      
       const emptyConsultation = new Consultations({
         consultationId: Math.floor(100000 + Math.random() * 900000),
         appointmentId: appointment._id, 
@@ -379,6 +391,7 @@ exports.markAsCompletedStandalone = async (req, res, next) => {
     });
 
   } catch (error) {
+    console.error("❌ CRITICAL EXCEPTION IN STANDALONE TRANSACTION FLOW:", error);
     return res.status(500).json({ 
       success: false, 
       message: "Internal application error on processing transition flow.", 

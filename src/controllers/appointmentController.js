@@ -16,6 +16,24 @@ exports.bookAppointment = async (req, res) => {
         return res.status(404).json({ message: "Patient not found in database" });
     }
 
+
+    const checkDate = new Date(date);
+    checkDate.setHours(0,0,0,0);
+
+    const existingBooking = await Appointment.findOne({ 
+      doctorId, 
+      date: { $gte: checkDate, $lte: new Date(checkDate.getTime() + 86400000) }, 
+      time,
+      status: "Scheduled" 
+    });
+
+    if (existingBooking) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "This specific time slot has just been booked by another patient. Please select another slot!" 
+      });
+    }
+
     const appointmentId = Date.now().toString();    
 
     const appointment = await Appointment.create({ 
@@ -47,6 +65,7 @@ exports.bookAppointment = async (req, res) => {
     } catch (docErr) {}
 
     return res.status(201).json({ 
+      success: true,
       message: "Appointment booked successfully", 
       appointment 
     });

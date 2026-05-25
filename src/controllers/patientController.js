@@ -96,6 +96,7 @@ exports.updatePatient = async (req, res) => {
 const downloadPrescriptionLogic = async (req, res) => {
     try {
         const id = req.params.consultationId || req.params.id || req.query.consultationId || req.query.id;
+        console.log("📥 [PDF ENGINE] STARTING BINARY PIPELINE FOR ID:", id);
 
         if (!id) {
             return res.status(400).json({ success: false, message: "ID parameter missing." });
@@ -122,6 +123,7 @@ const downloadPrescriptionLogic = async (req, res) => {
         }
 
         if (!consultation) {
+            console.log("❌ [PDF ENGINE] NOT FOUND IN DB:", id);
             return res.status(404).json({ success: false, message: "No prescription documentation matches this key reference." });
         }
 
@@ -136,8 +138,8 @@ const downloadPrescriptionLogic = async (req, res) => {
         const patientData = appointment.patient; 
 
         const pdfPayload = {
-            id: consultation.consultationId || 5001,
-            consultationId: consultation.consultationId || 5001,
+            consultationId: consultation._id ? String(consultation._id) : String(consultation.consultationId),
+            id: consultation._id ? String(consultation._id) : String(consultation.consultationId),
             consultation: consultation,
             pName: patientData ? patientData.name : 'Unknown Patient',
             pAge: patientData ? patientData.age : 'N/A',
@@ -169,20 +171,25 @@ const downloadPrescriptionLogic = async (req, res) => {
         };
 
         try {
+            console.log("🚀 COMPILING PDF DATA THROUGH PIPELINE RENDERER...");
+            
             res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Prescription_${consultation.consultationId || id}.pdf`);
+            // ✅ FILENAME STRUCTURE SYNCHRONIZED
+            res.setHeader('Content-Disposition', `attachment; filename=Prescription_${consultation._id || id}.pdf`);
             
             return generatePrescriptionPDF(res, pdfPayload);
         } catch (pdfBuilderErr) {
+            console.error("🚨 ASYNC PDF ENGINE CRASHED INTERNALLY:", pdfBuilderErr);
             res.setHeader('Content-Type', 'application/json');
             return res.status(500).json({ 
                 success: false, 
-                message: "PDF generatePrescriptionPDF crashed", 
+                message: "PDF generatePrescriptionPDF library ke andar crash ho gaya.", 
                 error: pdfBuilderErr.message 
             });
         }
 
     } catch (error) {
+        console.error("❌ CRITICAL ERROR IN CONTROLLER BLOCK:", error);
         res.setHeader('Content-Type', 'application/json');
         return res.status(500).json({ success: false, error: error.message });
     }
