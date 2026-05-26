@@ -377,7 +377,7 @@ exports.markAsCompletedStandalone = async (req, res, next) => {
         patient: appointment.patient,    
         doctorId: appointment.doctorId || "D001",
         date: appointment.date || new Date().toISOString().split('T')[0],
-        notes: "Take Rest and eat healthy", 
+        notes: "Take Rest", 
         prescriptions: [] 
       });
       

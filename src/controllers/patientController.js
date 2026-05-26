@@ -174,7 +174,6 @@ const downloadPrescriptionLogic = async (req, res) => {
             console.log("🚀 COMPILING PDF DATA THROUGH PIPELINE RENDERER...");
             
             res.setHeader('Content-Type', 'application/pdf');
-            // ✅ FILENAME STRUCTURE SYNCHRONIZED
             res.setHeader('Content-Disposition', `attachment; filename=Prescription_${consultation._id || id}.pdf`);
             
             return generatePrescriptionPDF(res, pdfPayload);
