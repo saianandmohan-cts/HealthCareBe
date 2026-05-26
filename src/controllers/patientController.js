@@ -3,7 +3,6 @@ const Appointment = require('../models/appointment');
 const Consultations = require('../models/Consultations');
 const Doctor = require('../models/doctor');
 const { generatePrescriptionPDF } = require('../utils/pdfGenerator'); 
-const mongoose = require('mongoose');
 
 exports.getPatientDashboard = async (req, res, next) => {
     try {
@@ -22,7 +21,7 @@ exports.getPatientDashboard = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Patient not Found' });
         }
 
-        const appointments = await Appointment.find({ patient: patientList._id });
+        const appointments = await Appointment.find({ patient: patientList._id }).populate('patient').populate('doctorId');;
 
         return res.status(200).json({
             message: 'Patient Dashboard Fetched Successfully',

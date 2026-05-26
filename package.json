@@ -18,9 +18,12 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
+    "fs": "^0.0.1-security",
     "init": "^0.1.2",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.5.0",
+    "path": "^0.12.7",
+    "pdf-creator-node": "^4.0.1",
     "pdfkit": "^0.18.0",
     "router": "^2.2.0"
   },

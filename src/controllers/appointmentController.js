@@ -16,7 +16,6 @@ exports.bookAppointment = async (req, res) => {
         return res.status(404).json({ message: "Patient not found in database" });
     }
 
-
     const checkDate = new Date(date);
     checkDate.setHours(0,0,0,0);
 
@@ -55,14 +54,18 @@ exports.bookAppointment = async (req, res) => {
           { doctorId: String(doctorId), date: searchDate, "slots.time": time },
           { $set: { "slots.$.isBooked": true } }
       );
-    } catch (slotErr) {}
+    } catch (slotErr) {
+      console.error("Availability sync failed:", slotErr.message);
+    }
 
     try {
       await Doctor.updateOne(
           { doctorId: String(doctorId) },
           { $push: { appointments: appointment._id } } 
       );
-    } catch (docErr) {}
+    } catch (docErr) {
+      console.error("Doctor profile sync failed:", docErr.message);
+    }
 
     return res.status(201).json({ 
       success: true,
