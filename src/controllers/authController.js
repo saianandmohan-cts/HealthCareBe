@@ -7,19 +7,42 @@ exports.registerPatient = async (req, res) => {
   try {
     const { name, age, gender, contactNumber, email, password, address, medicalHistory, allergy } = req.body;
 
+
     const existingPatient = await Patient.findOne({ email });
     if (existingPatient) {
       return res.status(400).json({ success: false, message: 'Patient already exists with this email' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const lastPatient = await Patient.findOne().sort({ patientId: -1 });
-    const newPatientId = lastPatient ? Number(lastPatient.patientId) + 1 : 1;
 
+  
+    const highestPatientRecord = await Patient.aggregate([
+      {
+        $addFields: {
+          numericPatientId: { $toInt: "$patientId" }
+        }
+      },
+      { $sort: { numericPatientId: -1 } },
+      { $limit: 1 }
+    ]);
+
+    let newPatientId = 1;
+
+    if (highestPatientRecord && highestPatientRecord.length > 0) {
+      const currentHighestId = parseInt(highestPatientRecord[0].patientId, 10);
+      newPatientId = currentHighestId + 1;
+    }
     const newPatient = new Patient({
-      patientId: String(newPatientId), name, age, gender, contactNumber, email,
-      password: hashedPassword, address,
-      medicalHistory: medicalHistory || [], allergy: allergy || []
+      patientId: String(newPatientId),
+      name,
+      age,
+      gender,
+      contactNumber,
+      email,
+      password: hashedPassword,
+      address,
+      medicalHistory: medicalHistory || [],
+      allergy: allergy || []
     });
 
     await newPatient.save();
@@ -27,9 +50,15 @@ exports.registerPatient = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Patient registered successfully',
-      patient: { patientId: newPatient.patientId, name: newPatient.name, email: newPatient.email }
+      patient: { 
+        patientId: newPatient.patientId, 
+        name: newPatient.name, 
+        email: newPatient.email 
+      }
     });
+
   } catch (error) {
+    console.error("Patient Registration Crash Error Trace:", error.message);
     return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
@@ -70,14 +99,14 @@ exports.loginDoctor = async (req, res) => {
       return res.status(400).json({ success: false, status: "not_found", message: "Doctor not found" });
     }
 
-    if (doctor.password !== password) {
+    const isMatch = await bcrypt.compare(password, doctor.password);
+    if (!isMatch) {
        return res.status(400).json({ success: false, status: "error", message: "Invalid password" });
     }
 
     const token = generateToken({ 
       userId: doctor._id, 
       dId: doctor.doctorId, 
-      demail: doctor.email, 
       role: "DOCTOR" 
     });
     setAuthCookie(res, token);
@@ -124,5 +153,72 @@ exports.logout = async (req, res) => {
     return res.status(200).json({ success: true, message: 'Logged out successfully' });
   } catch (error) {
     return res.status(500).json({ success: false, message: 'Logout failed', error: error.message });
+  }
+};
+
+
+exports.registerDoctor = async (req, res) => {
+  try {
+    const { name, degree, department, experience, profilePic, password, contactNumber } = req.body;
+    if (!name || !degree || !department || !password || !contactNumber) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Required fields (name, degree, department, password, contactNumber) are missing.' 
+      });
+    }
+    const highestDoctorRecord = await Doctor.aggregate([
+      {
+        $addFields: {
+          numericId: {
+            $toInt: {
+              $trim: {
+                input: "$doctorId",
+                chars: "D"
+              }
+            }
+          }
+        }
+      },
+      { $sort: { numericId: -1 } },
+      { $limit: 1 }
+    ]);
+
+    let newDocNumber = 1;
+    if (highestDoctorRecord && highestDoctorRecord.length > 0) {
+      const lastIdStr = highestDoctorRecord[0].doctorId.replace("D", "");
+      newDocNumber = parseInt(lastIdStr, 10) + 1;
+    }
+
+    const newDoctorId = `D${String(newDocNumber).padStart(3, '0')}`;
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newDoctor = new Doctor({
+      doctorId: newDoctorId,
+      name,
+      degree: Array.isArray(degree) ? degree : [degree], 
+      department,
+      experience: Number(experience) || 0,
+      contactNumber: String(contactNumber),
+      profilePic: profilePic || "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=250",
+      password: hashedPassword,
+      appointments: [] 
+    });
+
+    await newDoctor.save();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Doctor registered successfully into system database!',
+      doctor: {
+        doctorId: newDoctor.doctorId,
+        name: newDoctor.name,
+        department: newDoctor.department,
+        contactNumber: newDoctor.contactNumber
+      }
+    });
+
+  } catch (error) {
+    console.error("🚨 Error inside registerDoctor pipeline:", error.message);
+    return res.status(500).json({ success: false, message: 'Server internal error', error: error.message });
   }
 };

@@ -16,12 +16,18 @@ exports.bookAppointment = async (req, res) => {
         return res.status(404).json({ message: "Patient not found in database" });
     }
 
+   
     const checkDate = new Date(date);
-    checkDate.setHours(0,0,0,0);
+    checkDate.setUTCHours(0, 0, 0, 0);
+
+   
+    const startOfTargetDay = new Date(checkDate);
+    const endOfTargetDay = new Date(checkDate);
+    endOfTargetDay.setUTCHours(23, 59, 59, 999);
 
     const existingBooking = await Appointment.findOne({ 
-      doctorId, 
-      date: { $gte: checkDate, $lte: new Date(checkDate.getTime() + 86400000) }, 
+      doctorId: String(doctorId), 
+      date: { $gte: startOfTargetDay, $lte: endOfTargetDay }, 
       time,
       status: "Scheduled" 
     });
@@ -35,11 +41,12 @@ exports.bookAppointment = async (req, res) => {
 
     const appointmentId = Date.now().toString();    
 
+   
     const appointment = await Appointment.create({ 
       appointmentId, 
-      doctorId, 
+      doctorId: String(doctorId), 
       patient: patientData._id, 
-      date: new Date(date), 
+      date: checkDate, 
       time, 
       mode,
       reason,
@@ -47,11 +54,8 @@ exports.bookAppointment = async (req, res) => {
     });
 
     try {
-      const searchDate = new Date(date);
-      searchDate.setHours(0,0,0,0);
-      
       await Availability.updateOne(
-          { doctorId: String(doctorId), date: searchDate, "slots.time": time },
+          { doctorId: String(doctorId), date: checkDate, "slots.time": time },
           { $set: { "slots.$.isBooked": true } }
       );
     } catch (slotErr) {
@@ -89,7 +93,12 @@ exports.modifyAppointment = async (req, res) => {
     }
 
     const updates = {};
-    if (date) updates.date = date;
+    if (date) {
+   
+      const updateDateNormalized = new Date(date);
+      updateDateNormalized.setUTCHours(0, 0, 0, 0);
+      updates.date = updateDateNormalized;
+    }
     if (time) updates.time = time;
     if (status) updates.status = status;
     if (mode) updates.mode = mode;     
@@ -107,17 +116,17 @@ exports.modifyAppointment = async (req, res) => {
 
     if (date || time) {
       try {
-        const oldDate = new Date(oldAppointment.date);
-        oldDate.setHours(0,0,0,0);
+        const oldDateNormalized = new Date(oldAppointment.date);
+        oldDateNormalized.setUTCHours(0, 0, 0, 0);
         await Availability.updateOne(
-            { doctorId: String(oldAppointment.doctorId), date: oldDate, "slots.time": oldAppointment.time },
+            { doctorId: String(oldAppointment.doctorId), date: oldDateNormalized, "slots.time": oldAppointment.time },
             { $set: { "slots.$.isBooked": false } }
         );
 
-        const newDate = new Date(updatedAppointment.date);
-        newDate.setHours(0,0,0,0);
+        const newDateNormalized = new Date(updatedAppointment.date);
+        newDateNormalized.setUTCHours(0, 0, 0, 0);
         await Availability.updateOne(
-            { doctorId: String(updatedAppointment.doctorId), date: newDate, "slots.time": updatedAppointment.time },
+            { doctorId: String(updatedAppointment.doctorId), date: newDateNormalized, "slots.time": updatedAppointment.time },
             { $set: { "slots.$.isBooked": true } }
         );
       } catch (slotErr) {}

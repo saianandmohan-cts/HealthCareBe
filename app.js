@@ -1,4 +1,3 @@
-require("dotenv").config()
 const express = require ('express'); 
 const app = express();
 const cors = require('cors');
@@ -7,7 +6,7 @@ const cookieParser = require('cookie-parser');
 const availabilityRoutes = require('./src/routes/doc_availabilityRoutes');
 
 app.use(cors({
-    origin:'http://localhost:4200',
+    origin:process.env.CORS_ORIGIN,
     credentials:true
 }))
 

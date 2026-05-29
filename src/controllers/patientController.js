@@ -21,12 +21,29 @@ exports.getPatientDashboard = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'Patient not Found' });
         }
 
-        const appointments = await Appointment.find({ patient: patientList._id }).populate('patient').populate('doctorId');;
+        
+        const rawAppointments = await Appointment.find({ patient: patientList._id }).populate('patient');
+
+       
+        const populatedAppointments = await Promise.all(rawAppointments.map(async (appt) => {
+            const apptObj = appt.toObject();
+            
+          
+            if (appt.doctorId) {
+                const doctorData = await Doctor.findOne({ doctorId: String(appt.doctorId) }).select('-password');
+              
+                apptObj.doctorId = doctorData ? doctorData : { name: `Doctor (${appt.doctorId})`, department: "General" };
+            } else {
+                apptObj.doctorId = { name: 'Unknown Doctor', department: "General" };
+            }
+            
+            return apptObj;
+        }));
 
         return res.status(200).json({
             message: 'Patient Dashboard Fetched Successfully',
             patientList,
-            appointments
+            appointments: populatedAppointments 
         });
     
     } catch (err) {

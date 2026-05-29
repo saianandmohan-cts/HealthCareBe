@@ -247,28 +247,71 @@ exports.getAvailabilitySlots = async (req, res, next) => {
 exports.updateAvailabilitySlots = async (req, res, next) => {
   try {
     const { _id, doctorId, date, slots } = req.body;
+    const finalDoctorId = String(doctorId || "D001");
 
+    
+    const baseDate = new Date(date);
+    
+    const startOfTargetDay = new Date(baseDate);
+    startOfTargetDay.setUTCHours(0, 0, 0, 0); 
+
+    const endOfTargetDay = new Date(baseDate);
+    endOfTargetDay.setUTCHours(23, 59, 59, 999); 
+
+    const cancelledTimes = [];
+    if (slots && Array.isArray(slots)) {
+      slots.forEach(newSlot => {
+        const isNowUnavailable = newSlot.isAvailable === false || newSlot.isAvailable === 'false';
+        if (isNowUnavailable) {
+          cancelledTimes.push(newSlot.time);
+          newSlot.isBooked = false; 
+        }
+      });
+    }
+
+    if (cancelledTimes.length > 0) {
+      
+      await Appointment.updateMany(
+        {
+          $or: [
+            { doctorId: finalDoctorId },
+            { doctorId: Number(finalDoctorId) || 0 }
+          ],
+          date: { $gte: startOfTargetDay, $lte: endOfTargetDay },
+          time: { $in: cancelledTimes },
+          status: { $in: ["Scheduled", "scheduled", "Scheduled"] }
+        },
+        {
+          $set: { status: 'Cancelled' }
+        }
+      );
+    }
+
+    // 3. Availability record ko update ya upsert karo
+    let updatedRecord;
     if (_id) {
-      const updatedRecord = await mongoose.model('Availability').findByIdAndUpdate(
+      updatedRecord = await mongoose.model('Availability').findByIdAndUpdate(
         _id,
         { $set: { slots: slots } },
         { new: true }
       );
-      return res.status(200).json({ success: true, message: "Availability slots updated successfully", data: updatedRecord });
+    } else {
+      updatedRecord = await mongoose.model('Availability').findOneAndUpdate(
+        { doctorId: finalDoctorId, date: startOfTargetDay },
+        { $set: { slots: slots } },
+        { new: true, upsert: true }
+      );
     }
 
-    const isoDateString = new Date(date).toISOString().split('T')[0];
-    const parsedDate = new Date(`${isoDateString}T00:00:00.000Z`);
+    return res.status(200).json({ 
+      success: true, 
+      message: "Availability slots updated & target appointments completely cancelled successfully!", 
+      data: updatedRecord 
+    });
 
-    const updatedRecord = await mongoose.model('Availability').findOneAndUpdate(
-      { doctorId: String(doctorId || "D001"), date: parsedDate },
-      { $set: { slots: slots } },
-      { new: true, upsert: true }
-    );
-
-    return res.status(200).json({ success: true, message: "Availability slots updated successfully", data: updatedRecord });
   } catch (err) {
-    return res.status(500).json({ success: false, message: "Server internal error while saving slots", error: err.message });
+    console.error("Mass Cancellation Error Trace:", err.message);
+    return res.status(500).json({ success: false, message: "Server internal error while saving slots structure", error: err.message });
   }
 };
 
