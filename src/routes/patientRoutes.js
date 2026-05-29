@@ -8,6 +8,7 @@ const { validateSingleAppointmentPerDay } = require('../validators/appointment.v
 
 
 router.get('/dashboard/:patientId',verifyPatient ,getPatientDashboard)
+
 router.patch('/updatePatient/:patientId',verifyPatient ,updatePatient)
 router.post('/book-appointment',verifyPatient,validateSingleAppointmentPerDay ,bookAppointment);
 router.patch('/modify-appointment/:appointmentId',verifyPatient ,modifyAppointment)

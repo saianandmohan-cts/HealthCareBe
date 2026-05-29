@@ -6,7 +6,7 @@ const { generatePrescriptionPDF } = require('../utils/pdfGenerator');
 
 exports.getPatientDashboard = async (req, res, next) => {
     try {
-        const patientId = req.user && req.user.pId ? String(req.user.pId) : null;
+        const patientId =String(req.user.pId);
 
         if (!patientId) {
             return res.status(401).json({ 

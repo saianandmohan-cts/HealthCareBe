@@ -1,4 +1,6 @@
 const jwt = require("jsonwebtoken");
+const { decodedData } = require('../utils/decodedData'); 
+
 
 
 const cookieOptions = {
@@ -28,34 +30,21 @@ exports.clearAuthCookie = (res) => {
 
 
 exports.verifyPatient = (req, res, next) => {
-    try {
-        const token = req.cookies?.token;
+    const decoded = decodedData(req);
 
-        if (!token) {
-            return res.status(401).json({ success: false, message: "No token provided" });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        if (decoded.role && decoded.role !== 'PATIENT') {
-            return res.status(403).json({ success: false, message: "Access Denied: Patients Only Route" });
-        }
-
-        req.user = {
-            pId: decoded.pId,
-            pemail: decoded.pemail,
-            role: decoded.role
-        };
-        next();
-    } catch (err) {
-        let errmsg = "Invalid Token";
-        if (err.name === 'TokenExpiredError') {
-            errmsg = "Token Expired! Please Login Again.";
-        }
-        return res.status(401).json({ success: false, message: errmsg });
+    if (!decoded) {
+        return res.status(401).json({ success: false, message: "Invalid or expired session token. Please login again." });
     }
+    if (decoded.role && decoded.role !== 'PATIENT') {
+        return res.status(403).json({ success: false, message: "Access Denied: Patients Only Route" });
+    }
+    req.user = {
+        pId: decoded.pId,
+        pemail: decoded.pemail,
+        role: decoded.role
+    };
+    next();
 };
-
 
 exports.verifyDoctor = (req, res, next) => {
     try {

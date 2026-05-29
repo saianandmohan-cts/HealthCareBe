@@ -14,25 +14,14 @@ app.use(express.json());
 app.use(express.urlencoded({extended : true}));
 app.use(cookieParser());
 
-const logger = require('./src/middleware/logger')
-const errorhandler = require('./src/middleware/errorHandler');
-
-
 const authRoutes = require ('./src/routes/authRoutes');
-const registrationRoutes = require ('./src/routes/registrationRoutes');
 const patientRoutes = require ('./src/routes/patientRoutes');
 const doctorRoutes = require ('./src/routes/doctorRoutes');
 
 
- app.use('/login', authRoutes);
-
- 
- app.use('/registration', registrationRoutes);
-
+app.use('/login', authRoutes); 
 
 app.use('/patient',patientRoutes);
-
-
 app.use('/doctor',doctorRoutes);
 app.use('/api/availability', availabilityRoutes);
 

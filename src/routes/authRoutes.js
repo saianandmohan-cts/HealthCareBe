@@ -12,7 +12,9 @@ const {
 
 
 router.post('/register', registerPatient)
-router.post('/', loginPatient);        
+
+router.post('/', loginPatient);   
+     
 router.post('/doctor', loginDoctor); 
 router.post('/register-doctor',registerDoctor);  
 router.get('/me', getMe);              

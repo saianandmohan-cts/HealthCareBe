@@ -2,8 +2,12 @@ const bcrypt = require('bcrypt');
 const Patient = require('../models/patient');
 const Doctor = require('../models/doctor');
 const { generateToken, setAuthCookie, clearAuthCookie } = require('../middleware/auth');
+const errorHandler = require('../middleware/errorHandler')
 
-exports.registerPatient = async (req, res) => {
+const { decodedData } = require('../utils/decodedData');
+
+
+exports.registerPatient = async (req, res,next) => {
   try {
     const { name, age, gender, contactNumber, email, password, address, medicalHistory, allergy } = req.body;
 
@@ -25,6 +29,7 @@ exports.registerPatient = async (req, res) => {
       { $sort: { numericPatientId: -1 } },
       { $limit: 1 }
     ]);
+
 
     let newPatientId = 1;
 
@@ -50,23 +55,16 @@ exports.registerPatient = async (req, res) => {
     return res.status(201).json({
       success: true,
       message: 'Patient registered successfully',
-      patient: { 
-        patientId: newPatient.patientId, 
-        name: newPatient.name, 
-        email: newPatient.email 
-      }
     });
 
   } catch (error) {
-    console.error("Patient Registration Crash Error Trace:", error.message);
-    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
+    next(errorHandler)
   }
 };
 
-exports.loginPatient = async (req, res) => {
+exports.loginPatient = async (req, res,next) => {
   try {
     const { email, password } = req.body;
-
     const user = await Patient.findOne({ email });
     if (!user) {
       return res.status(400).json({ success: false, message: 'User not found' });
@@ -87,9 +85,9 @@ exports.loginPatient = async (req, res) => {
 
     return res.status(200).json({ success: true, message: 'Login successful' });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
+    next(errorHandler)
   }
-};
+}
 
 exports.loginDoctor = async (req, res) => {
   try {
@@ -119,13 +117,11 @@ exports.loginDoctor = async (req, res) => {
 
 exports.getMe = async (req, res) => {
   try {
-    const token = req.cookies?.token;
-    if (!token) {
-      return res.status(401).json({ success: false, message: 'No session token found' });
-    }
+    const decoded = decodedData(req);
 
-    const jwt = require("jsonwebtoken");
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      return res.status(401).json({ success: false, message: 'Session expired or no active token found' });
+    }
 
     if (decoded.role === 'DOCTOR') {
       const doctor = await Doctor.findOne({ doctorId: decoded.dId }).select('-password');
@@ -143,7 +139,7 @@ exports.getMe = async (req, res) => {
       });
     }
   } catch (error) {
-    return res.status(401).json({ success: false, message: 'Session expired or invalid token', error: error.message });
+    return res.status(500).json({ success: false, message: 'Server error', error: error.message });
   }
 };
 
