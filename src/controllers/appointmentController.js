@@ -94,18 +94,58 @@ exports.modifyAppointment = async (req, res) => {
 
     const updates = {};
     if (date) {
-   
       const updateDateNormalized = new Date(date);
       updateDateNormalized.setUTCHours(0, 0, 0, 0);
       updates.date = updateDateNormalized;
     }
     if (time) updates.time = time;
     if (status) updates.status = status;
-    if (mode) updates.mode = mode;     
+    if (mode) updates.mode = mode;    
     if (reason) updates.reason = reason; 
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ success: false, message: "No fields provided to update" });
+    }
+
+    if (date || time) {
+      const targetDate = updates.date || new Date(oldAppointment.date);
+      const targetTime = updates.time || oldAppointment.time;
+
+      const startOfTargetDay = new Date(targetDate);
+      startOfTargetDay.setUTCHours(0, 0, 0, 0);
+      
+      const endOfTargetDay = new Date(targetDate);
+      endOfTargetDay.setUTCHours(23, 59, 59, 999);
+
+      const doctorConflict = await Appointment.findOne({
+        doctorId: String(oldAppointment.doctorId),
+        date: { $gte: startOfTargetDay, $lte: endOfTargetDay },
+        time: targetTime,
+        status: "Scheduled",
+        appointmentId: { $ne: appointmentId }
+      });
+
+      if (doctorConflict) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "The doctor is already booked at this specific time slot. Please choose another time!" 
+        });
+      }
+
+      const patientConflict = await Appointment.findOne({
+        patient: oldAppointment.patient,
+        date: { $gte: startOfTargetDay, $lte: endOfTargetDay },
+        time: targetTime,
+        status: "Scheduled",
+        appointmentId: { $ne: appointmentId }
+      });
+
+      if (patientConflict) {
+        return res.status(400).json({ 
+          success: false, 
+          message: "You already have another appointment scheduled at this exact time! Please select a different slot." 
+        });
+      }
     }
 
     const updatedAppointment = await Appointment.findOneAndUpdate(
@@ -129,7 +169,9 @@ exports.modifyAppointment = async (req, res) => {
             { doctorId: String(updatedAppointment.doctorId), date: newDateNormalized, "slots.time": updatedAppointment.time },
             { $set: { "slots.$.isBooked": true } }
         );
-      } catch (slotErr) {}
+      } catch (slotErr) {
+        console.error("Availability sync error:", slotErr.message);
+      }
     }
 
     res.status(200).json({ success: true, message: "Appointment updated successfully", data: updatedAppointment });

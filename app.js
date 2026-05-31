@@ -1,33 +1,30 @@
-const express = require ('express'); 
+const express = require('express'); 
 const app = express();
 const cors = require('cors');
+const helmet = require('helmet'); 
 const cookieParser = require('cookie-parser');
 
-const availabilityRoutes = require('./src/routes/doc_availabilityRoutes');
+
+app.use(helmet());
 
 app.use(cors({
-    origin:process.env.CORS_ORIGIN,
-    credentials:true
-}))
+    origin: process.env.CORS_ORIGIN,
+    credentials: true
+}));
 
 app.use(express.json());
-app.use(express.urlencoded({extended : true}));
+app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-const authRoutes = require ('./src/routes/authRoutes');
-const patientRoutes = require ('./src/routes/patientRoutes');
-const doctorRoutes = require ('./src/routes/doctorRoutes');
+const authRoutes = require('./src/routes/authRoutes');
+const patientRoutes = require('./src/routes/patientRoutes');
+const doctorRoutes = require('./src/routes/doctorRoutes');
+const availabilityRoutes = require('./src/routes/doc_availabilityRoutes');
 
 
 app.use('/login', authRoutes); 
-
-app.use('/patient',patientRoutes);
-app.use('/doctor',doctorRoutes);
+app.use('/patient', patientRoutes);
+app.use('/doctor', doctorRoutes);
 app.use('/api/availability', availabilityRoutes);
 
-
-
-
-module.exports = app ; 
-
-
+module.exports = app;

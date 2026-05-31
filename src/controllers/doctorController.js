@@ -2,7 +2,7 @@ const Doctor = require('../models/doctor');
 const Appointment = require('../models/appointment');
 const Availability = require('../models/doc_availability');
 const mongoose = require('mongoose');
-const Consultations = require('../models/Consultations');
+const Consultations = require('../models/consultations');
 
 exports.getAllDoctorInfo = async (req, res, next) => {
   try {

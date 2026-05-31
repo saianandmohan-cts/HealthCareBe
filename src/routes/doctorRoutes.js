@@ -23,13 +23,7 @@ router.get('/getDoctorById/:id' ,getDoctorById);
 
 router.get('/getDoctor',verifyDoctor ,getDoctor);
 
-
-
-
-
 router.delete('/deleteAppointment/:id',verifyDoctor ,cancelAppointment);
-
-
 
 router.get('/allAppointments',verifyDoctor ,getAllAppointments);
 

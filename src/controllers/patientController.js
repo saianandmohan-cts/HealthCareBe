@@ -1,6 +1,6 @@
 const Patient = require('../models/patient');
 const Appointment = require('../models/appointment');
-const Consultations = require('../models/Consultations');
+const Consultations = require('../models/consultations');
 const Doctor = require('../models/doctor');
 const { generatePrescriptionPDF } = require('../utils/pdfGenerator'); 
 
@@ -112,7 +112,7 @@ exports.updatePatient = async (req, res) => {
 const downloadPrescriptionLogic = async (req, res) => {
     try {
         const id = req.params.consultationId || req.params.id || req.query.consultationId || req.query.id;
-        console.log("📥 [PDF ENGINE] STARTING BINARY PIPELINE FOR ID:", id);
+        console.log("[PDF ENGINE] STARTING BINARY PIPELINE FOR ID:", id);
 
         if (!id) {
             return res.status(400).json({ success: false, message: "ID parameter missing." });
@@ -139,7 +139,7 @@ const downloadPrescriptionLogic = async (req, res) => {
         }
 
         if (!consultation) {
-            console.log("❌ [PDF ENGINE] NOT FOUND IN DB:", id);
+            console.log(" [PDF ENGINE] NOT FOUND IN DB:", id);
             return res.status(404).json({ success: false, message: "No prescription documentation matches this key reference." });
         }
 
