@@ -2,8 +2,14 @@ const PDFDocument = require('pdfkit');
 
 exports.generatePrescriptionPDF = (res, data) => {
     const id = data.id || data.consultationId || (data.consultation && data.consultation._id) || 'N/A';
-    const pDate = data.pDate || (data.date ? new Date(data.date).toLocaleDateString() : new Date().toLocaleDateString());
-    
+    const rawDate = data.pDate || data.date || new Date();
+
+    const pDate = new Date(rawDate).toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+    });   
     const pName = data.pName || data.patient?.name || 'Unknown Patient';
     const pAge = data.pAge || data.patient?.age || 'N/A';
     const pGender = data.pGender || data.patient?.gender || 'Not Specified';
